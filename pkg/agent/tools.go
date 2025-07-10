@@ -23,6 +23,7 @@ func CreateSchemaTools(conn *db.Connection) []*Tool {
 func CreateExecutionTools(conn *db.Connection, getUserApproval func(string) bool) []*Tool {
 	return []*Tool{
 		createExecuteSQLTool(conn, getUserApproval),
+		createExplainQueryTool(conn, getUserApproval),
 	}
 }
 
@@ -490,4 +491,125 @@ func formatValue(value interface{}) string {
 		return "NULL"
 	}
 	return fmt.Sprintf("%v", value)
+}
+
+// createExplainQueryTool creates a tool for analyzing query execution plans
+func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bool) *Tool {
+	return &Tool{
+		Name:        "explain_query",
+		Description: "Analyze a SQL query's execution plan using EXPLAIN (without actually executing the query). This helps understand query performance and optimization opportunities.",
+		InputSchema: ToolSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"sql": map[string]interface{}{
+					"type":        "string",
+					"description": "The SQL query to analyze (SELECT, INSERT, UPDATE, DELETE, etc.)",
+				},
+				"explanation": map[string]interface{}{
+					"type":        "string",
+					"description": "Brief explanation of why you want to analyze this query",
+				},
+			},
+			Required: []string{"sql", "explanation"},
+		},
+		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) {
+			sqlQuery, ok := input["sql"].(string)
+			if !ok {
+				return &ToolResult{
+					Content: "Error: sql parameter must be a string",
+					IsError: true,
+				}, fmt.Errorf("invalid sql parameter")
+			}
+
+			explanation, ok := input["explanation"].(string)
+			if !ok {
+				explanation = "Query analysis"
+			}
+
+			// Present query to user for approval
+			approved := getUserApproval(fmt.Sprintf("%s\n\nQuery to analyze:\n%s\n\nNote: This will run EXPLAIN (not ANALYZE) - no data will be modified", explanation, sqlQuery))
+
+			if !approved {
+				return &ToolResult{
+					Content: "User declined query analysis",
+					IsError: false,
+				}, nil
+			}
+
+			// Execute EXPLAIN on the query
+			explainSQL := "EXPLAIN " + sqlQuery
+			result, err := executeExplainQuery(ctx, conn, explainSQL, sqlQuery)
+			if err != nil {
+				return &ToolResult{
+					Content: fmt.Sprintf("EXPLAIN query failed: %s", err.Error()),
+					IsError: true,
+				}, nil
+			}
+
+			return &ToolResult{
+				Content: result,
+				IsError: false,
+			}, nil
+		},
+	}
+}
+
+// executeExplainQuery executes EXPLAIN query and returns formatted results for LLM
+func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, originalSQL string) (string, error) {
+	rows, err := conn.Query(ctx, explainSQL)
+	if err != nil {
+		return "", fmt.Errorf("EXPLAIN query failed: %w", err)
+	}
+	defer rows.Close()
+
+	var result strings.Builder
+	result.WriteString("Query Execution Plan Analysis:\n")
+	result.WriteString("============================\n\n")
+	result.WriteString(fmt.Sprintf("Original Query:\n%s\n\n", originalSQL))
+	result.WriteString("Execution Plan:\n")
+	result.WriteString("---------------\n")
+
+	// Read all plan rows
+	planLines := []string{}
+	for rows.Next() {
+		values, err := rows.Values()
+		if err != nil {
+			return "", fmt.Errorf("failed to read EXPLAIN result: %w", err)
+		}
+
+		// EXPLAIN returns a single column with the plan text
+		if len(values) > 0 {
+			planLine := formatValue(values[0])
+			planLines = append(planLines, planLine)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("error reading EXPLAIN results: %w", err)
+	}
+
+	// Format the plan for LLM consumption
+	for _, line := range planLines {
+		result.WriteString(line + "\n")
+	}
+
+	result.WriteString("\nThis execution plan shows:\n")
+	result.WriteString("- The operations PostgreSQL will perform\n")
+	result.WriteString("- The order of operations (read from innermost to outermost)\n")
+	result.WriteString("- Cost estimates for each operation\n")
+	result.WriteString("- Join methods and access patterns\n")
+	result.WriteString("\nUse this information to suggest optimizations like:\n")
+	result.WriteString("- Adding indexes on frequently filtered columns\n")
+	result.WriteString("- Rewriting queries for better performance\n")
+	result.WriteString("- Identifying expensive operations\n")
+
+	// Display to user
+	fmt.Println("\n📊 Query Execution Plan:")
+	fmt.Println(strings.Repeat("=", 50))
+	for _, line := range planLines {
+		fmt.Println(line)
+	}
+	fmt.Printf("\n✅ EXPLAIN completed (%d plan lines)\n\n", len(planLines))
+
+	return result.String(), nil
 }

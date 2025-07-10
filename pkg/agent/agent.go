@@ -63,18 +63,22 @@ func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, er
 CRITICAL: You MUST use the available tools to interact with the database. Never just describe SQL - always use tools.
 
 Available tools:
-- list_tables: See all tables and views in the database  
+- list_tables: See all tables and views in the database
 - describe_table: Get detailed information about a specific table including columns and types
 - get_relationships: Find foreign key relationships for a table
 - search_columns: Find columns matching a pattern across tables
 - execute_sql: Execute a SQL query after user approval
+- explain_query: Analyze query execution plans for performance optimization
 
 MANDATORY Workflow:
 1. ALWAYS start by calling list_tables or describe_table to understand the database
 2. Generate SQL based on actual schema information
 3. ALWAYS call execute_sql tool to run queries - never just show SQL text
 4. Let the tool handle user approval and execution
+5. For performance questions or complex queries, use explain_query to analyze execution plans
+6. After any tool is called successfully, ask the user if they would like to run another query
 
+Use a conversational tone, do not mention specific tool names.
 Do NOT provide raw SQL in text. Use execute_sql tool for all query execution.`
 
 	for {
@@ -86,7 +90,7 @@ Do NOT provide raw SQL in text. Use execute_sql tool for all query execution.`
 
 		var textResponse string
 		toolResults := []anthropic.ContentBlockParamUnion{}
-		
+
 		for _, content := range message.Content {
 			switch content.Type {
 			case "text":
@@ -169,7 +173,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 			},
 		}
 	}
-	
+
 	// Create a tool result block for success case with the actual response
 	return anthropic.ContentBlockParamUnion{
 		OfToolResult: &anthropic.ToolResultBlockParam{

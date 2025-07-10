@@ -207,7 +207,7 @@ func ConvertToolToDefinition(tool *Tool) ToolDefinition {
 			}
 
 			if result.IsError {
-				return "", fmt.Errorf(result.Content)
+				return "", fmt.Errorf("%s", result.Content)
 			}
 
 			return result.Content, nil

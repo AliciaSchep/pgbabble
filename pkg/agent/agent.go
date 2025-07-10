@@ -12,8 +12,9 @@ import (
 
 // Agent implements the simple pattern from ampcode.com
 type Agent struct {
-	client *anthropic.Client
-	tools  []ToolDefinition
+	client       *anthropic.Client
+	tools        []ToolDefinition
+	conversation []anthropic.MessageParam
 }
 
 // ToolDefinition matches the ampcode.com pattern
@@ -36,40 +37,53 @@ func NewAgent(apiKey string) (*Agent, error) {
 	client := anthropic.NewClient(option.WithAPIKey(apiKey))
 
 	return &Agent{
-		client: &client,
-		tools:  []ToolDefinition{},
+		client:       &client,
+		tools:        []ToolDefinition{},
+		conversation: []anthropic.MessageParam{},
 	}, nil
 }
 
 // AddTool adds a tool to the agent
 func (a *Agent) AddTool(tool ToolDefinition) {
 	a.tools = append(a.tools, tool)
+	fmt.Printf("🔧 Registered tool: %s\n", tool.Name)
+}
+
+// ClearConversation clears the conversation history
+func (a *Agent) ClearConversation() {
+	a.conversation = []anthropic.MessageParam{}
 }
 
 // SendMessage sends a message and handles tool calling (simplified from the ampcode.com pattern)
 func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, error) {
-	conversation := []anthropic.MessageParam{
-		anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)),
-	}
+	// Add user message to conversation history
+	a.conversation = append(a.conversation, anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)))
 
 	systemMessage := `You are a PostgreSQL expert assistant that helps users write SQL queries.
 
-IMPORTANT: You have access to database schema tools. Always use these tools FIRST to understand the database structure before writing SQL queries.
+CRITICAL: You MUST use the available tools to interact with the database. Never just describe SQL - always use tools.
 
 Available tools:
 - list_tables: See all tables and views in the database  
 - describe_table: Get detailed information about a specific table including columns and types
 - get_relationships: Find foreign key relationships for a table
 - search_columns: Find columns matching a pattern across tables
+- execute_sql: Execute a SQL query after user approval
 
-Always start by using list_tables or describe_table to understand the database structure, then generate accurate SQL queries based on the actual schema.`
+MANDATORY Workflow:
+1. ALWAYS start by calling list_tables or describe_table to understand the database
+2. Generate SQL based on actual schema information
+3. ALWAYS call execute_sql tool to run queries - never just show SQL text
+4. Let the tool handle user approval and execution
+
+Do NOT provide raw SQL in text. Use execute_sql tool for all query execution.`
 
 	for {
-		message, err := a.runInference(ctx, conversation, systemMessage)
+		message, err := a.runInference(ctx, a.conversation, systemMessage)
 		if err != nil {
 			return "", err
 		}
-		conversation = append(conversation, message.ToParam())
+		a.conversation = append(a.conversation, message.ToParam())
 
 		var textResponse string
 		toolResults := []anthropic.ContentBlockParamUnion{}
@@ -79,6 +93,7 @@ Always start by using list_tables or describe_table to understand the database s
 			case "text":
 				textResponse += content.Text
 			case "tool_use":
+				fmt.Printf("🛠️  LLM called tool: %s\n", content.Name)
 				result := a.executeTool(content.ID, content.Name, content.Input)
 				toolResults = append(toolResults, result)
 			}
@@ -90,7 +105,7 @@ Always start by using list_tables or describe_table to understand the database s
 		}
 
 		// Add tool results and continue the conversation
-		conversation = append(conversation, anthropic.NewUserMessage(toolResults...))
+		a.conversation = append(a.conversation, anthropic.NewUserMessage(toolResults...))
 	}
 }
 

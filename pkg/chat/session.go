@@ -116,6 +116,15 @@ func (s *Session) handleCommand(ctx context.Context, cmd string) error {
 			return nil
 		}
 		return s.setMode(parts[1])
+
+	case "/clear", "/c":
+		if s.agentReady {
+			s.agent.ClearConversation()
+			fmt.Println("🧹 Conversation history cleared")
+		} else {
+			fmt.Println("ℹ️  No conversation to clear")
+		}
+		return nil
 		
 	default:
 		return fmt.Errorf("unknown command: %s (type /help for available commands)", parts[0])
@@ -154,11 +163,6 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 	fmt.Println(response)
 	fmt.Println()
 
-	// If the response contains SQL, offer to execute it
-	if s.containsSQL(response) {
-		return s.handleSQLResponse(ctx, response)
-	}
-
 	return nil
 }
 
@@ -173,8 +177,15 @@ func (s *Session) initializeAgent() {
 	}
 
 	// Add schema inspection tools
-	tools := agent.CreateSchemaTools(s.conn)
-	for _, tool := range tools {
+	schemaTools := agent.CreateSchemaTools(s.conn)
+	for _, tool := range schemaTools {
+		toolDef := agent.ConvertToolToDefinition(tool)
+		agentClient.AddTool(toolDef)
+	}
+
+	// Add SQL execution tools with user approval callback
+	executionTools := agent.CreateExecutionTools(s.conn, s.getUserApproval)
+	for _, tool := range executionTools {
 		toolDef := agent.ConvertToolToDefinition(tool)
 		agentClient.AddTool(toolDef)
 	}
@@ -186,98 +197,30 @@ func (s *Session) initializeAgent() {
 	fmt.Println()
 }
 
-// containsSQL checks if the response contains SQL code
-func (s *Session) containsSQL(content string) bool {
-	content = strings.ToLower(content)
-	sqlKeywords := []string{"select", "insert", "update", "delete", "create", "alter", "drop"}
-	
-	for _, keyword := range sqlKeywords {
-		if strings.Contains(content, keyword) {
-			return true
-		}
-	}
-	return false
-}
 
-// handleSQLResponse handles responses that contain SQL code
-func (s *Session) handleSQLResponse(ctx context.Context, content string) error {
-	// Extract SQL from the response (simple implementation)
-	lines := strings.Split(content, "\n")
-	var sqlLines []string
-	var inSQLBlock bool
+// getUserApproval prompts the user to approve a SQL query execution
+func (s *Session) getUserApproval(queryInfo string) bool {
+	fmt.Println("\n🔍 SQL Query Ready for Execution:")
+	fmt.Println(strings.Repeat("=", 50))
+	fmt.Println(queryInfo)
+	fmt.Println(strings.Repeat("=", 50))
 	
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		
-		// Detect SQL code blocks
-		if strings.HasPrefix(line, "```sql") || strings.HasPrefix(line, "```") {
-			inSQLBlock = !inSQLBlock
-			continue
-		}
-		
-		if inSQLBlock {
-			sqlLines = append(sqlLines, line)
-		} else if line != "" && (strings.HasPrefix(strings.ToLower(line), "select") ||
-			strings.HasPrefix(strings.ToLower(line), "with") ||
-			strings.HasPrefix(strings.ToLower(line), "insert") ||
-			strings.HasPrefix(strings.ToLower(line), "update") ||
-			strings.HasPrefix(strings.ToLower(line), "delete")) {
-			// Line looks like SQL
-			sqlLines = append(sqlLines, line)
-		}
-	}
+	// Change the readline prompt temporarily for this question
+	s.rl.SetPrompt("Execute this query? (y/yes/n/no): ")
 	
-	if len(sqlLines) == 0 {
-		return nil
-	}
-	
-	sql := strings.Join(sqlLines, "\n")
-	if sql == "" {
-		return nil
-	}
-	
-	fmt.Println("🔍 Generated SQL:")
-	fmt.Println(strings.Repeat("-", 50))
-	fmt.Println(sql)
-	fmt.Println(strings.Repeat("-", 50))
-	fmt.Println()
-	
-	// Ask for approval
-	fmt.Print("Execute this query? (y/n/e=edit): ")
-	
-	// Read user input
 	response, err := s.rl.Readline()
 	if err != nil {
-		return err
+		fmt.Printf("Error reading input: %v\n", err)
+		// Reset prompt back to normal
+		s.rl.SetPrompt("pgbabble> ")
+		return false
 	}
-	
-	response = strings.ToLower(strings.TrimSpace(response))
-	
-	switch response {
-	case "y", "yes":
-		return s.executeSQL(ctx, sql)
-	case "e", "edit":
-		fmt.Println("💡 SQL editing not implemented yet - you can copy/paste the SQL to run manually")
-		return nil
-	case "n", "no":
-		fmt.Println("❌ Query not executed")
-		return nil
-	default:
-		fmt.Println("❌ Invalid response. Query not executed")
-		return nil
-	}
-}
 
-// executeSQL executes the SQL query and displays results
-func (s *Session) executeSQL(ctx context.Context, sql string) error {
-	fmt.Println("⚡ Executing query...")
-	
-	// TODO: Implement actual query execution and result display
-	// For now, just show a placeholder
-	fmt.Println("🚧 Query execution coming in Phase 3!")
-	fmt.Printf("📝 SQL to execute:\n%s\n", sql)
-	
-	return nil
+	// Reset prompt back to normal
+	s.rl.SetPrompt("pgbabble> ")
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	return response == "y" || response == "yes"
 }
 
 // showHelp displays available commands
@@ -289,6 +232,7 @@ func (s *Session) showHelp() {
 	fmt.Println("  /tables, /t        List all tables and views")
 	fmt.Println("  /describe <table>  Describe a specific table")
 	fmt.Println("  /mode [mode]       Show or set data exposure mode")
+	fmt.Println("  /clear, /c         Clear conversation history")
 	fmt.Println()
 	fmt.Println("Or just type a natural language question about your data!")
 }

@@ -19,6 +19,13 @@ func CreateSchemaTools(conn *db.Connection) []*Tool {
 	}
 }
 
+// CreateExecutionTools creates SQL execution tools for the LLM
+func CreateExecutionTools(conn *db.Connection, getUserApproval func(string) bool) []*Tool {
+	return []*Tool{
+		createExecuteSQLTool(conn, getUserApproval),
+	}
+}
+
 // createListTablesTool creates a tool to list all tables and views
 func createListTablesToolI(conn *db.Connection) *Tool {
 	return &Tool{
@@ -322,4 +329,165 @@ func MarshalToolsToJSON(tools []*Tool) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+// createExecuteSQLTool creates a tool for executing SQL queries with user approval
+func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool) *Tool {
+	return &Tool{
+		Name:        "execute_sql",
+		Description: "Execute a SQL query after getting user approval. Use this when you have generated a SQL query that answers the user's question.",
+		InputSchema: ToolSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"sql": map[string]interface{}{
+					"type":        "string",
+					"description": "The SQL query to execute",
+				},
+				"explanation": map[string]interface{}{
+					"type":        "string", 
+					"description": "Brief explanation of what this query does",
+				},
+			},
+			Required: []string{"sql", "explanation"},
+		},
+		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) {
+			sqlQuery, ok := input["sql"].(string)
+			if !ok {
+				return &ToolResult{
+					Content: "Error: sql parameter must be a string",
+					IsError: true,
+				}, fmt.Errorf("invalid sql parameter")
+			}
+
+			explanation, ok := input["explanation"].(string)
+			if !ok {
+				explanation = "SQL query execution"
+			}
+
+			// Present SQL to user for approval
+			approved := getUserApproval(fmt.Sprintf("%s\n\nSQL Query:\n%s", explanation, sqlQuery))
+			
+			if !approved {
+				return &ToolResult{
+					Content: "User rejected the query execution",
+					IsError: false,
+				}, nil
+			}
+
+			// Execute the approved query
+			result, err := executeApprovedSQL(ctx, conn, sqlQuery)
+			if err != nil {
+				return &ToolResult{
+					Content: fmt.Sprintf("Query execution failed: %s", err.Error()),
+					IsError: true,
+				}, nil
+			}
+
+			return &ToolResult{
+				Content: result,
+				IsError: false,
+			}, nil
+		},
+	}
+}
+
+// executeApprovedSQL executes SQL and returns execution metadata (not actual data)
+func executeApprovedSQL(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
+	// Determine query type for appropriate execution method
+	trimmedSQL := strings.TrimSpace(strings.ToUpper(sqlQuery))
+	
+	if strings.HasPrefix(trimmedSQL, "SELECT") || strings.HasPrefix(trimmedSQL, "WITH") {
+		// Handle SELECT queries
+		return executeSelectQuery(ctx, conn, sqlQuery)
+	} else {
+		// Handle INSERT/UPDATE/DELETE queries
+		return executeModifyQuery(ctx, conn, sqlQuery)
+	}
+}
+
+// executeSelectQuery executes a SELECT query and displays results to user
+func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
+	rows, err := conn.Query(ctx, sqlQuery)
+	if err != nil {
+		return "", fmt.Errorf("query failed: %w", err)
+	}
+	defer rows.Close()
+
+	// Get column descriptions
+	fieldDescriptions := rows.FieldDescriptions()
+	columnNames := make([]string, len(fieldDescriptions))
+	for i, fd := range fieldDescriptions {
+		columnNames[i] = string(fd.Name)
+	}
+
+	// Display results to user (simple table format)
+	fmt.Println("\n📊 Query Results:")
+	fmt.Println(strings.Repeat("=", 50))
+	
+	// Print header
+	fmt.Printf("| ")
+	for _, name := range columnNames {
+		fmt.Printf("%-15s | ", truncateString(name, 15))
+	}
+	fmt.Println()
+	fmt.Println(strings.Repeat("-", len(columnNames)*18))
+
+	// Print rows and count them
+	rowCount := 0
+	for rows.Next() {
+		values, err := rows.Values()
+		if err != nil {
+			return "", fmt.Errorf("failed to read row: %w", err)
+		}
+
+		fmt.Printf("| ")
+		for _, value := range values {
+			fmt.Printf("%-15s | ", truncateString(formatValue(value), 15))
+		}
+		fmt.Println()
+		rowCount++
+
+		// Limit display to prevent overwhelming output
+		if rowCount >= 100 {
+			fmt.Printf("... (showing first 100 rows)\n")
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("error reading results: %w", err)
+	}
+
+	fmt.Printf("\n✅ Query executed successfully (%d rows)\n\n", rowCount)
+	
+	// Return metadata for LLM (no actual data)
+	return fmt.Sprintf("Query executed successfully, %d rows returned", rowCount), nil
+}
+
+// executeModifyQuery executes INSERT/UPDATE/DELETE and returns affected rows
+func executeModifyQuery(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
+	result, err := conn.Pool().Exec(ctx, sqlQuery)
+	if err != nil {
+		return "", fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected := result.RowsAffected()
+	fmt.Printf("\n✅ Query executed successfully (%d rows affected)\n\n", rowsAffected)
+	
+	return fmt.Sprintf("Query executed successfully, %d rows affected", rowsAffected), nil
+}
+
+// Helper functions
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
+
+func formatValue(value interface{}) string {
+	if value == nil {
+		return "NULL"
+	}
+	return fmt.Sprintf("%v", value)
 }

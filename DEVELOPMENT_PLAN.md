@@ -53,35 +53,48 @@
   - `search_columns(pattern)`
 - Format schema info for LLM context
 
-### 2.3 SQL Generation Flow
-- **Tests First**: SQL generation and review workflow tests
-- Natural language → SQL generation
-- Present generated SQL for user review
-- User approval flow: approve/reject/iterate
-- Track conversation context for iterations
+### 2.3 SQL Generation & Execution Flow (Tool-Based)
+- **Tests First**: SQL execution tool and workflow tests
+- Natural language → LLM provides context + calls `execute_sql` tool
+- `execute_sql` tool: presents SQL to user for approval (y/n)
+- User approval flow: approve/reject with immediate feedback
+- Tool returns appropriate result to LLM based on user choice and execution outcome
 
-## Phase 3: Query Execution & Results (Weeks 5-6)
-**Goal**: Execute approved queries with privacy-first result handling
+## Phase 3: Query Execution & Results (Current Focus)
+**Goal**: Implement tool-based SQL execution with user approval
 
-### 3.1 Query Execution Engine
-- **Tests First**: Safe execution and result handling tests
-- Execute user-approved SQL queries
-- Return only success/failure + error details to LLM
-- No query result data sent to LLM by default
-- Resource limits and timeouts
+### 3.1 SQL Execution Tool (`execute_sql`)
+- **Tool-based approach**: LLM calls tool with SQL query as parameter
+- **User approval prompt**: Display SQL + ask for y/yes/n/no confirmation
+- **Privacy-first results**: 
+  - If rejected: Return "User rejected query" to LLM
+  - If approved + success: Return "Query executed successfully, N rows affected" to LLM
+  - If approved + error: Return error code + relevant DB object info to LLM
+  - **No actual query result data** sent to LLM by default
 
-### 3.2 Result Display
-- **Tests First**: Table formatting and display tests
-- Simple ASCII table output for users
-- Handle various PostgreSQL data types
-- Pagination for large result sets
-- Export options (future: CSV, JSON)
+### 3.2 Result Display Engine
+- **Tests First**: Table formatting and result display tests
+- Simple ASCII table output for users (not sent to LLM)
+- Handle various PostgreSQL data types gracefully
+- Row count and execution timing display
+- Pagination for large result sets (future enhancement)
 
 ### 3.3 Safety & Error Handling
-- **Tests First**: Validation and safety tests
-- Basic SQL validation (prevent DROP/DELETE without confirmation)
-- User-friendly error messages
+- **Tests First**: SQL validation and safety tests
+- Basic SQL validation (warn on dangerous operations)
+- Resource limits and query timeouts
+- Clear error messages for both user and LLM
 - Graceful connection recovery
+
+### 3.4 Enhanced SQL Execution Flow
+```
+User: "Show me popular LEGO themes"
+LLM: "I'll find the most popular LEGO themes by set count"
+LLM calls: execute_sql(sql="SELECT theme_name, COUNT(*) FROM...")
+Tool: Shows SQL → prompts user → executes if approved → displays results to user
+Tool returns to LLM: "Query executed successfully, 10 rows returned"
+LLM: "Great! The query found the top 10 themes. You can see the results above."
+```
 
 ## Phase 4: Enhanced Data Modes Foundation (Week 7)
 **Goal**: Architecture for summary_data and full_data modes
@@ -166,9 +179,19 @@ pgbabble>
 1. **psql-compatible connection handling** for familiar UX
 2. **Interactive chat-first design** with immediate DB connection
 3. **Privacy-first with explicit data exposure controls**
-4. **Test-driven development** with comprehensive coverage
-5. **Tool-based LLM integration** for extensibility
-6. **Minimal, battle-tested dependencies**
+4. **Tool-based SQL execution** - LLM calls tools rather than text parsing
+5. **User approval required** for all SQL execution
+6. **Test-driven development** with comprehensive coverage
+7. **Tool-based LLM integration** for extensibility
+8. **Minimal, battle-tested dependencies**
+
+## Tool-Based SQL Execution Benefits
+- **Clean separation**: LLM generates SQL, tool handles execution
+- **User control**: Every query requires explicit approval
+- **Privacy protection**: Only execution metadata sent to LLM, never result data
+- **Error handling**: Proper error context without exposing sensitive data
+- **Conversation flow**: LLM gets appropriate feedback to continue conversation
+- **Safety**: Built-in validation and user confirmation for all operations
 
 ## Future Enhancements (Beyond MVP)
 - Local LLM support via go-llama.cpp

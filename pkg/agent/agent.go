@@ -46,7 +46,6 @@ func NewAgent(apiKey string) (*Agent, error) {
 // AddTool adds a tool to the agent
 func (a *Agent) AddTool(tool ToolDefinition) {
 	a.tools = append(a.tools, tool)
-	fmt.Printf("🔧 Registered tool: %s\n", tool.Name)
 }
 
 // ClearConversation clears the conversation history

@@ -394,16 +394,13 @@ func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool
 
 // executeApprovedSQL executes SQL and returns execution metadata (not actual data)
 func executeApprovedSQL(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
-	// Determine query type for appropriate execution method
-	trimmedSQL := strings.TrimSpace(strings.ToUpper(sqlQuery))
-	
-	if strings.HasPrefix(trimmedSQL, "SELECT") || strings.HasPrefix(trimmedSQL, "WITH") {
-		// Handle SELECT queries
-		return executeSelectQuery(ctx, conn, sqlQuery)
-	} else {
-		// Handle INSERT/UPDATE/DELETE queries
-		return executeModifyQuery(ctx, conn, sqlQuery)
+	// Validate that query is safe to execute
+	if err := validateSafeQuery(sqlQuery); err != nil {
+		return "", err
 	}
+
+	// Only SELECT and WITH queries are allowed
+	return executeSelectQuery(ctx, conn, sqlQuery)
 }
 
 // executeSelectQuery executes a SELECT query and displays results to user
@@ -465,17 +462,91 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 	return fmt.Sprintf("Query executed successfully, %d rows returned", rowCount), nil
 }
 
-// executeModifyQuery executes INSERT/UPDATE/DELETE and returns affected rows
-func executeModifyQuery(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
-	result, err := conn.Pool().Exec(ctx, sqlQuery)
-	if err != nil {
-		return "", fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected := result.RowsAffected()
-	fmt.Printf("\n✅ Query executed successfully (%d rows affected)\n\n", rowsAffected)
+// validateSafeQuery ensures the query is safe to execute (SELECT/WITH only)
+func validateSafeQuery(sqlQuery string) error {
+	// Clean and normalize the query
+	cleaned := strings.TrimSpace(strings.ToUpper(sqlQuery))
 	
-	return fmt.Sprintf("Query executed successfully, %d rows affected", rowsAffected), nil
+	// Remove comments
+	lines := strings.Split(cleaned, "\n")
+	var cleanedLines []string
+	for _, line := range lines {
+		// Remove line comments
+		if commentPos := strings.Index(line, "--"); commentPos != -1 {
+			line = line[:commentPos]
+		}
+		line = strings.TrimSpace(line)
+		if line != "" {
+			cleanedLines = append(cleanedLines, line)
+		}
+	}
+	cleaned = strings.Join(cleanedLines, " ")
+	
+	// Remove block comments (/* ... */)
+	for {
+		start := strings.Index(cleaned, "/*")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(cleaned[start:], "*/")
+		if end == -1 {
+			return fmt.Errorf("unclosed block comment in query")
+		}
+		cleaned = cleaned[:start] + " " + cleaned[start+end+2:]
+	}
+	
+	cleaned = strings.TrimSpace(cleaned)
+	
+	// Check for allowed query types
+	allowedPrefixes := []string{"SELECT", "WITH"}
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(cleaned, prefix) {
+			// Additional validation for potentially dangerous functions/keywords
+			if err := validateQueryContent(cleaned); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+	
+	return fmt.Errorf("only SELECT and WITH queries are allowed for security reasons")
+}
+
+// validateQueryContent checks for dangerous functions or patterns within allowed queries
+func validateQueryContent(query string) error {
+	// List of dangerous functions/patterns to block
+	dangerousPatterns := []string{
+		"PG_SLEEP",
+		"PG_TERMINATE_BACKEND", 
+		"PG_CANCEL_BACKEND",
+		"COPY",
+		"\\COPY",
+		"DBLINK",
+		"DBLINK_EXEC",
+		"PERFORM",
+		"DO $$", 
+		"DO $",
+		"CREATE",
+		"DROP",
+		"ALTER",
+		"TRUNCATE",
+		"DELETE",
+		"INSERT",
+		"UPDATE",
+		"GRANT",
+		"REVOKE",
+		"SET ROLE",
+		"SET SESSION",
+		"RESET",
+	}
+	
+	for _, pattern := range dangerousPatterns {
+		if strings.Contains(query, pattern) {
+			return fmt.Errorf("query contains potentially dangerous operation: %s", pattern)
+		}
+	}
+	
+	return nil
 }
 
 // Helper functions
@@ -533,6 +604,14 @@ func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bo
 				return &ToolResult{
 					Content: "User declined query analysis",
 					IsError: false,
+				}, nil
+			}
+
+			// Validate that query is safe to analyze
+			if err := validateSafeQuery(sqlQuery); err != nil {
+				return &ToolResult{
+					Content: fmt.Sprintf("Query validation failed: %s", err.Error()),
+					IsError: true,
 				}, nil
 			}
 

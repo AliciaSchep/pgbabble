@@ -340,7 +340,7 @@ func MarshalToolsToJSON(tools []*Tool) (string, error) {
 func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool) *Tool {
 	return &Tool{
 		Name:        "execute_sql",
-		Description: "Execute a SQL query after getting user approval. Use this when you have generated a SQL query that answers the user's question.",
+		Description: "Execute a SQL query after getting user approval. Use this when you have generated a SQL query that answers the user's question. IMPORTANT: If the user rejects the query, do NOT immediately offer another SQL query. Instead, ask the user what they want changed or modified about the query approach.",
 		InputSchema: ToolSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -374,7 +374,7 @@ func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool
 			
 			if !approved {
 				return &ToolResult{
-					Content: "User rejected the query execution",
+					Content: "User rejected the query execution. Do NOT immediately offer another SQL query. Instead, ask the user what they want changed, modified, or what approach they prefer. Find out what was wrong with the query or what they wanted differently.",
 					IsError: false,
 				}, nil
 			}
@@ -646,7 +646,7 @@ func formatDatabaseError(err error) string {
 func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bool) *Tool {
 	return &Tool{
 		Name:        "explain_query",
-		Description: "Analyze a SQL query's execution plan using EXPLAIN (without actually executing the query). This helps understand query performance and optimization opportunities.",
+		Description: "Analyze a SQL query's execution plan using EXPLAIN (without actually executing the query). This helps understand query performance and optimization opportunities. IMPORTANT: If the user declines analysis, ask what they want changed or if they prefer a different approach.",
 		InputSchema: ToolSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
@@ -680,7 +680,7 @@ func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bo
 
 			if !approved {
 				return &ToolResult{
-					Content: "User declined query analysis",
+					Content: "User declined query analysis. Ask the user what they want changed about the query or if they prefer a different approach to analyze their data.",
 					IsError: false,
 				}, nil
 			}

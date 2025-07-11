@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"pgbabble/pkg/db"
 )
+
+// QueryTimeout is the default timeout for SQL query execution
+var QueryTimeout = 60 * time.Second
 
 // CreateSchemaTools creates all schema inspection tools for the LLM
 func CreateSchemaTools(conn *db.Connection) []*Tool {
@@ -405,9 +409,47 @@ func executeApprovedSQL(ctx context.Context, conn *db.Connection, sqlQuery strin
 
 // executeSelectQuery executes a SELECT query and displays results to user
 func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
-	rows, err := conn.Query(ctx, sqlQuery)
+	// Add configurable query timeout for safety (default 60s)
+	queryCtx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	// Record start time for execution timing
+	startTime := time.Now()
+	
+	// Start progress indicator
+	done := make(chan bool)
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-ticker.C:
+				elapsed := time.Since(startTime)
+				fmt.Printf("\rQuery running... %v elapsed", elapsed.Round(time.Second))
+			case <-done:
+				return
+			}
+		}
+	}()
+	
+	fmt.Print("Executing query...")
+	
+	// Ensure we have a healthy connection
+	conn.EnsureConnection(queryCtx)
+	
+	rows, err := conn.Query(queryCtx, sqlQuery)
+	
+	// Stop progress indicator
+	close(done)
+	fmt.Print("\r") // Clear the progress line
+	
 	if err != nil {
-		return "", fmt.Errorf("query failed: %w", err)
+		// Check for timeout error and provide helpful message
+		if queryCtx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("query timed out after %v - please check if your query is optimized or try adding LIMIT clause", QueryTimeout)
+		}
+		return "", fmt.Errorf("%s", formatDatabaseError(err))
 	}
 	defer rows.Close()
 
@@ -435,7 +477,7 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
-			return "", fmt.Errorf("failed to read row: %w", err)
+			return "", fmt.Errorf("%s", formatDatabaseError(err))
 		}
 
 		fmt.Printf("| ")
@@ -453,13 +495,16 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 	}
 
 	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("error reading results: %w", err)
+		return "", fmt.Errorf("%s", formatDatabaseError(err))
 	}
 
-	fmt.Printf("\n✅ Query executed successfully (%d rows)\n\n", rowCount)
+	// Calculate execution time
+	executionTime := time.Since(startTime)
+	
+	fmt.Printf("\n✅ Query executed successfully (%d rows in %v)\n\n", rowCount, executionTime)
 	
 	// Return metadata for LLM (no actual data)
-	return fmt.Sprintf("Query executed successfully, %d rows returned", rowCount), nil
+	return fmt.Sprintf("Query executed successfully, %d rows returned in %v", rowCount, executionTime), nil
 }
 
 // validateSafeQuery ensures the query is safe to execute (SELECT/WITH only)
@@ -564,6 +609,39 @@ func formatValue(value interface{}) string {
 	return fmt.Sprintf("%v", value)
 }
 
+// formatDatabaseError provides user-friendly error messages for common database errors
+func formatDatabaseError(err error) string {
+	errStr := err.Error()
+	
+	// Handle common PostgreSQL error patterns
+	if strings.Contains(errStr, "relation") && strings.Contains(errStr, "does not exist") {
+		return fmt.Sprintf("Table or view not found: %v. Use the list_tables tool to see available tables.", err)
+	}
+	
+	if strings.Contains(errStr, "column") && strings.Contains(errStr, "does not exist") {
+		return fmt.Sprintf("Column not found: %v. Use the describe_table tool to see available columns.", err)
+	}
+	
+	if strings.Contains(errStr, "syntax error") {
+		return fmt.Sprintf("SQL syntax error: %v. Please check your query syntax.", err)
+	}
+	
+	if strings.Contains(errStr, "permission denied") {
+		return fmt.Sprintf("Permission denied: %v. You may not have access to this table or operation.", err)
+	}
+	
+	if strings.Contains(errStr, "connection") && (strings.Contains(errStr, "refused") || strings.Contains(errStr, "closed")) {
+		return fmt.Sprintf("Database connection issue: %v. The connection may have been lost. Attempting to reconnect...", err)
+	}
+	
+	if strings.Contains(errStr, "dial") || strings.Contains(errStr, "network") || strings.Contains(errStr, "timeout") {
+		return fmt.Sprintf("Network connectivity issue: %v. The database server may be unreachable.", err)
+	}
+	
+	// Return original error if no specific pattern matches
+	return fmt.Sprintf("Database error: %v", err)
+}
+
 // createExplainQueryTool creates a tool for analyzing query execution plans
 func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bool) *Tool {
 	return &Tool{
@@ -635,9 +713,23 @@ func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bo
 
 // executeExplainQuery executes EXPLAIN query and returns formatted results for LLM
 func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, originalSQL string) (string, error) {
-	rows, err := conn.Query(ctx, explainSQL)
+	// Add timeout for EXPLAIN queries (they should be fast, but still add safety)
+	queryCtx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	// Record start time
+	startTime := time.Now()
+	
+	// Ensure we have a healthy connection
+	conn.EnsureConnection(queryCtx)
+	
+	rows, err := conn.Query(queryCtx, explainSQL)
 	if err != nil {
-		return "", fmt.Errorf("EXPLAIN query failed: %w", err)
+		// Check for timeout error
+		if queryCtx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("EXPLAIN query timed out after %v", QueryTimeout)
+		}
+		return "", fmt.Errorf("%s", formatDatabaseError(err))
 	}
 	defer rows.Close()
 
@@ -653,7 +745,7 @@ func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, o
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
-			return "", fmt.Errorf("failed to read EXPLAIN result: %w", err)
+			return "", fmt.Errorf("%s", formatDatabaseError(err))
 		}
 
 		// EXPLAIN returns a single column with the plan text
@@ -664,7 +756,7 @@ func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, o
 	}
 
 	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("error reading EXPLAIN results: %w", err)
+		return "", fmt.Errorf("%s", formatDatabaseError(err))
 	}
 
 	// Format the plan for LLM consumption
@@ -682,13 +774,16 @@ func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, o
 	result.WriteString("- Rewriting queries for better performance\n")
 	result.WriteString("- Identifying expensive operations\n")
 
+	// Calculate execution time
+	executionTime := time.Since(startTime)
+
 	// Display to user
 	fmt.Println("\n📊 Query Execution Plan:")
 	fmt.Println(strings.Repeat("=", 50))
 	for _, line := range planLines {
 		fmt.Println(line)
 	}
-	fmt.Printf("\n✅ EXPLAIN completed (%d plan lines)\n\n", len(planLines))
+	fmt.Printf("\n✅ EXPLAIN completed (%d plan lines in %v)\n\n", len(planLines), executionTime)
 
 	return result.String(), nil
 }

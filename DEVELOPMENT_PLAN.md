@@ -6,7 +6,7 @@
 ### 1.1 Project Setup & Dependencies
 - Initialize Go module with minimal dependencies:
   - `github.com/jackc/pgx/v5` - PostgreSQL driver
-  - `github.com/spf13/cobra` - CLI framework  
+  - `github.com/spf13/cobra` - CLI framework
   - `github.com/anthropics/anthropic-sdk-go` - Anthropic client
   - `github.com/chzyer/readline` - Interactive terminal input
 - Set up clean project structure
@@ -14,7 +14,7 @@
 ### 1.2 Connection Management (TDD)
 - **Tests First**: Connection parsing and validation tests
 - Implement psql-compatible connection handling:
-  - Parse `postgresql://` URIs 
+  - Parse `postgresql://` URIs
   - Support individual flags: `--host`, `--port`, `--user`, `--password`, `--dbname`
   - Environment variable fallbacks: `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
   - Connection validation on startup
@@ -47,8 +47,8 @@
 ### 2.2 Schema Tools for Agent
 - **Tests First**: Tool execution and formatting tests
 - Schema inspection tools for LLM:
-  - `describe_table(table_name)` 
-  - `list_tables()` 
+  - `describe_table(table_name)`
+  - `list_tables()`
   - `get_relationships(table_name)`
   - `search_columns(pattern)`
 - Format schema info for LLM context
@@ -66,7 +66,7 @@
 ### 3.1 SQL Execution Tool (`execute_sql`)
 - **Tool-based approach**: LLM calls tool with SQL query as parameter
 - **User approval prompt**: Display SQL + ask for y/yes/n/no confirmation
-- **Privacy-first results**: 
+- **Privacy-first results**:
   - If rejected: Return "User rejected query" to LLM
   - If approved + success: Return "Query executed successfully, N rows affected" to LLM
   - If approved + error: Return error code + relevant DB object info to LLM
@@ -110,7 +110,6 @@ LLM: "Great! The query found the top 10 themes. You can see the results above."
 - Additional tools for LLM in summary_data mode:
   - `get_row_count(table_name)`
   - `get_column_stats(table_name, column_name)` (cardinality, nulls)
-  - `sample_values(table_name, column_name, limit=5)`
 
 ## Phase 5: Testing Strategy
 **Throughout all phases - TDD approach**
@@ -121,7 +120,7 @@ LLM: "Great! The query found the top 10 themes. You can see the results above."
 - Table-driven tests for multiple scenarios
 - Error condition testing
 
-### 5.2 Integration Testing  
+### 5.2 Integration Testing
 - End-to-end CLI testing
 - Real PostgreSQL integration (testcontainers)
 - Recorded LLM response testing
@@ -155,9 +154,9 @@ Type /help for commands, /quit to exit
 
 pgbabble> Show me all customers who made orders last month
 Generated SQL:
-SELECT c.name, c.email, COUNT(o.id) as order_count 
-FROM customers c 
-JOIN orders o ON c.id = o.customer_id 
+SELECT c.name, c.email, COUNT(o.id) as order_count
+FROM customers c
+JOIN orders o ON c.id = o.customer_id
 WHERE o.created_at >= date_trunc('month', CURRENT_DATE - interval '1 month')
   AND o.created_at < date_trunc('month', CURRENT_DATE)
 GROUP BY c.id, c.name, c.email;
@@ -172,7 +171,7 @@ Executing query...
 └──────────────┴─────────────────────┴─────────────┘
 Query executed successfully (2 rows)
 
-pgbabble> 
+pgbabble>
 ```
 
 ## Key Architecture Principles
@@ -194,6 +193,16 @@ pgbabble>
 - **Safety**: Built-in validation and user confirmation for all operations
 
 ## Future Enhancements (Beyond MVP)
+
+### Result Display & Pagination
+- **Smart result display**: Show 25 rows by default with keyboard shortcut (space/enter) for "less"-style paging through full results
+- **Database-level result limiting**: Automatically inject `LIMIT X` into SELECT queries 
+  - Default limit: 1000 rows (configurable)
+  - Option to disable limiting (set to null/0)
+  - User notification when limit is applied
+  - Override with explicit LIMIT in user query
+
+### Advanced Features
 - Local LLM support via go-llama.cpp
 - Advanced output formatting (JSON, CSV export)
 - Full data mode implementation

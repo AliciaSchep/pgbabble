@@ -409,7 +409,7 @@ func executeApprovedSQL(ctx context.Context, conn *db.Connection, sqlQuery strin
 
 // executeSelectQuery executes a SELECT query and displays results to user
 func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
-	// Add configurable query timeout for safety (default 60s)
+	// Add configurable query timeout while preserving cancellation from parent context
 	queryCtx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
 
@@ -427,6 +427,9 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 			case <-ticker.C:
 				elapsed := time.Since(startTime)
 				fmt.Printf("\rQuery running... %v elapsed", elapsed.Round(time.Second))
+			case <-queryCtx.Done():
+				// Context cancelled - stop progress indicator
+				return
 			case <-done:
 				return
 			}
@@ -445,7 +448,10 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 	fmt.Print("\r") // Clear the progress line
 	
 	if err != nil {
-		// Check for timeout error and provide helpful message
+		// Check for context cancellation and provide appropriate message
+		if queryCtx.Err() == context.Canceled {
+			return "", fmt.Errorf("query cancelled by user (Ctrl-C)")
+		}
 		if queryCtx.Err() == context.DeadlineExceeded {
 			return "", fmt.Errorf("query timed out after %v - please check if your query is optimized or try adding LIMIT clause", QueryTimeout)
 		}
@@ -713,7 +719,7 @@ func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bo
 
 // executeExplainQuery executes EXPLAIN query and returns formatted results for LLM
 func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, originalSQL string) (string, error) {
-	// Add timeout for EXPLAIN queries (they should be fast, but still add safety)
+	// Add timeout for EXPLAIN queries while preserving cancellation from parent context
 	queryCtx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
 
@@ -725,7 +731,10 @@ func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, o
 	
 	rows, err := conn.Query(queryCtx, explainSQL)
 	if err != nil {
-		// Check for timeout error
+		// Check for context cancellation and provide appropriate message
+		if queryCtx.Err() == context.Canceled {
+			return "", fmt.Errorf("EXPLAIN query cancelled by user (Ctrl-C)")
+		}
 		if queryCtx.Err() == context.DeadlineExceeded {
 			return "", fmt.Errorf("EXPLAIN query timed out after %v", QueryTimeout)
 		}

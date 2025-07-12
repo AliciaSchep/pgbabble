@@ -112,7 +112,7 @@ func (s *Session) handleCommand(ctx context.Context, cmd string) error {
 	case "/mode", "/m":
 		if len(parts) < 2 {
 			fmt.Printf("Current mode: %s\n", s.mode)
-			fmt.Println("Available modes: default, summary_data, full_data")
+			fmt.Println("Available modes: default, schema-only, share-results")
 			return nil
 		}
 		return s.setMode(parts[1])
@@ -177,14 +177,14 @@ func (s *Session) initializeAgent() {
 	}
 
 	// Add schema inspection tools
-	schemaTools := agent.CreateSchemaTools(s.conn)
+	schemaTools := agent.CreateSchemaTools(s.conn, s.mode)
 	for _, tool := range schemaTools {
 		toolDef := agent.ConvertToolToDefinition(tool)
 		agentClient.AddTool(toolDef)
 	}
 
 	// Add SQL execution tools with user approval callback
-	executionTools := agent.CreateExecutionTools(s.conn, s.getUserApproval)
+	executionTools := agent.CreateExecutionTools(s.conn, s.getUserApproval, s.mode)
 	for _, tool := range executionTools {
 		toolDef := agent.ConvertToolToDefinition(tool)
 		agentClient.AddTool(toolDef)
@@ -366,13 +366,13 @@ func (s *Session) describeTable(ctx context.Context, tableName string) error {
 // setMode changes the data exposure mode
 func (s *Session) setMode(newMode string) error {
 	validModes := map[string]bool{
-		"default":      true,
-		"summary_data": true,
-		"full_data":    true,
+		"default":       true,
+		"schema-only":   true,
+		"share-results": true,
 	}
 	
 	if !validModes[newMode] {
-		return fmt.Errorf("invalid mode: %s (valid modes: default, summary_data, full_data)", newMode)
+		return fmt.Errorf("invalid mode: %s (valid modes: default, schema-only, share-results)", newMode)
 	}
 	
 	oldMode := s.mode
@@ -381,11 +381,11 @@ func (s *Session) setMode(newMode string) error {
 	
 	switch newMode {
 	case "default":
-		fmt.Println("Default mode: Only schema information is sent to LLM, no query result data")
-	case "summary_data":
-		fmt.Println("Summary data mode: Schema + summary statistics (row counts, cardinality) sent to LLM")
-	case "full_data":
-		fmt.Println("Full data mode: Schema + actual query result data sent to LLM")
+		fmt.Println("Default mode: EXPLAIN sharing allowed, table size info shared, query row counts shared, but no actual query result data")
+	case "schema-only":
+		fmt.Println("Schema-only mode: No EXPLAIN sharing, no table size info, no query result data - maximum privacy")
+	case "share-results":
+		fmt.Println("Share-results mode: Full data sharing including EXPLAIN results, table sizes, and actual query result data")
 	}
 	
 	return nil

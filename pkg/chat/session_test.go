@@ -31,13 +31,13 @@ func TestSession_setMode(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "valid mode - summary_data",
-			newMode:     "summary_data",
+			name:        "valid mode - schema-only",
+			newMode:     "schema-only",
 			expectError: false,
 		},
 		{
-			name:        "valid mode - full_data",
-			newMode:     "full_data",
+			name:        "valid mode - share-results",
+			newMode:     "share-results",
 			expectError: false,
 		},
 		{

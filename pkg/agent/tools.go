@@ -14,9 +14,9 @@ import (
 var QueryTimeout = 60 * time.Second
 
 // CreateSchemaTools creates all schema inspection tools for the LLM
-func CreateSchemaTools(conn *db.Connection) []*Tool {
+func CreateSchemaTools(conn *db.Connection, mode string) []*Tool {
 	return []*Tool{
-		createListTablesToolI(conn),
+		createListTablesTool(conn, mode),
 		createDescribeTableTool(conn),
 		createGetRelationshipsTool(conn),
 		createSearchColumnsTool(conn),
@@ -24,15 +24,15 @@ func CreateSchemaTools(conn *db.Connection) []*Tool {
 }
 
 // CreateExecutionTools creates SQL execution tools for the LLM
-func CreateExecutionTools(conn *db.Connection, getUserApproval func(string) bool) []*Tool {
+func CreateExecutionTools(conn *db.Connection, getUserApproval func(string) bool, mode string) []*Tool {
 	return []*Tool{
-		createExecuteSQLTool(conn, getUserApproval),
-		createExplainQueryTool(conn, getUserApproval),
+		createExecuteSQLTool(conn, getUserApproval, mode),
+		createExplainQueryTool(conn, getUserApproval, mode),
 	}
 }
 
 // createListTablesTool creates a tool to list all tables and views
-func createListTablesToolI(conn *db.Connection) *Tool {
+func createListTablesTool(conn *db.Connection, mode string) *Tool {
 	return &Tool{
 		Name:        "list_tables",
 		Description: "Lists all tables and views in the database with their types and schemas",
@@ -71,7 +71,17 @@ func createListTablesToolI(conn *db.Connection) *Tool {
 				result.WriteString(strings.Repeat("-", len(schema)+8) + "\n")
 
 				for _, table := range schemaTables {
-					result.WriteString(fmt.Sprintf("- %s (%s)\n", table.Name, table.Type))
+					if mode == "default" || mode == "share-results" {
+						// Include estimated table size information for default and share-results modes
+						if table.EstimatedRows <= 0 {
+							result.WriteString(fmt.Sprintf("- %s (%s) - empty or no stats\n", table.Name, table.Type))
+						} else {
+							result.WriteString(fmt.Sprintf("- %s (%s) - ~%d rows (estimated)\n", table.Name, table.Type, table.EstimatedRows))
+						}
+					} else {
+						// Schema-only mode: no size information
+						result.WriteString(fmt.Sprintf("- %s (%s)\n", table.Name, table.Type))
+					}
 				}
 				result.WriteString("\n")
 			}
@@ -337,7 +347,7 @@ func MarshalToolsToJSON(tools []*Tool) (string, error) {
 }
 
 // createExecuteSQLTool creates a tool for executing SQL queries with user approval
-func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool) *Tool {
+func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool, mode string) *Tool {
 	return &Tool{
 		Name:        "execute_sql",
 		Description: "Execute a SQL query after getting user approval. Use this when you have generated a SQL query that answers the user's question. IMPORTANT: If the user rejects the query, do NOT immediately offer another SQL query. Instead, ask the user what they want changed or modified about the query approach.",
@@ -349,7 +359,7 @@ func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool
 					"description": "The SQL query to execute",
 				},
 				"explanation": map[string]interface{}{
-					"type":        "string", 
+					"type":        "string",
 					"description": "Brief explanation of what this query does",
 				},
 			},
@@ -371,7 +381,7 @@ func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool
 
 			// Present SQL to user for approval
 			approved := getUserApproval(fmt.Sprintf("%s\n\nSQL Query:\n%s", explanation, sqlQuery))
-			
+
 			if !approved {
 				return &ToolResult{
 					Content: "User rejected the query execution. Do NOT immediately offer another SQL query. Instead, ask the user what they want changed, modified, or what approach they prefer. Find out what was wrong with the query or what they wanted differently.",
@@ -380,7 +390,7 @@ func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool
 			}
 
 			// Execute the approved query
-			result, err := executeApprovedSQL(ctx, conn, sqlQuery)
+			result, err := executeApprovedSQL(ctx, conn, sqlQuery, mode)
 			if err != nil {
 				return &ToolResult{
 					Content: fmt.Sprintf("Query execution failed: %s", err.Error()),
@@ -397,31 +407,31 @@ func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool
 }
 
 // executeApprovedSQL executes SQL and returns execution metadata (not actual data)
-func executeApprovedSQL(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
+func executeApprovedSQL(ctx context.Context, conn *db.Connection, sqlQuery string, mode string) (string, error) {
 	// Validate that query is safe to execute
 	if err := validateSafeQuery(sqlQuery); err != nil {
 		return "", err
 	}
 
 	// Only SELECT and WITH queries are allowed
-	return executeSelectQuery(ctx, conn, sqlQuery)
+	return executeSelectQuery(ctx, conn, sqlQuery, mode)
 }
 
 // executeSelectQuery executes a SELECT query and displays results to user
-func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery string) (string, error) {
+func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery string, mode string) (string, error) {
 	// Add configurable query timeout while preserving cancellation from parent context
 	queryCtx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
 
 	// Record start time for execution timing
 	startTime := time.Now()
-	
+
 	// Start progress indicator
 	done := make(chan bool)
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
@@ -435,18 +445,18 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 			}
 		}
 	}()
-	
+
 	fmt.Print("Executing query...")
-	
+
 	// Ensure we have a healthy connection
 	conn.EnsureConnection(queryCtx)
-	
+
 	rows, err := conn.Query(queryCtx, sqlQuery)
-	
+
 	// Stop progress indicator
 	close(done)
 	fmt.Print("\r") // Clear the progress line
-	
+
 	if err != nil {
 		// Check for context cancellation and provide appropriate message
 		if queryCtx.Err() == context.Canceled {
@@ -469,7 +479,7 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 	// Display results to user (simple table format)
 	fmt.Println("\n📊 Query Results:")
 	fmt.Println(strings.Repeat("=", 50))
-	
+
 	// Print header
 	fmt.Printf("| ")
 	for _, name := range columnNames {
@@ -478,8 +488,18 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 	fmt.Println()
 	fmt.Println(strings.Repeat("-", len(columnNames)*18))
 
-	// Print rows and count them
+	// Print rows, count them, and optionally collect data for LLM
 	rowCount := 0
+	var collectedData *QueryResultData
+	if mode == "share-results" {
+		collectedData = &QueryResultData{
+			ColumnNames: columnNames,
+			Rows:        make([][]interface{}, 0),
+			TotalRows:   0, // Will be set after counting
+			Truncated:   false,
+		}
+	}
+
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
@@ -491,6 +511,15 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 			fmt.Printf("%-15s | ", truncateString(formatValue(value), 15))
 		}
 		fmt.Println()
+		
+		// Collect data for LLM if in share-results mode (limit to 50 rows)
+		if collectedData != nil && len(collectedData.Rows) < 50 {
+			// Make a copy of values to avoid reference issues
+			rowCopy := make([]interface{}, len(values))
+			copy(rowCopy, values)
+			collectedData.Rows = append(collectedData.Rows, rowCopy)
+		}
+		
 		rowCount++
 
 		// Limit display to prevent overwhelming output
@@ -500,24 +529,82 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 		}
 	}
 
+	// Finalize collected data
+	if collectedData != nil {
+		collectedData.TotalRows = rowCount
+		if rowCount > 50 {
+			collectedData.Truncated = true
+		}
+	}
+
 	if err := rows.Err(); err != nil {
 		return "", fmt.Errorf("%s", formatDatabaseError(err))
 	}
 
 	// Calculate execution time
 	executionTime := time.Since(startTime)
-	
+
 	fmt.Printf("\n✅ Query executed successfully (%d rows in %v)\n\n", rowCount, executionTime)
-	
-	// Return metadata for LLM (no actual data)
-	return fmt.Sprintf("Query executed successfully, %d rows returned in %v", rowCount, executionTime), nil
+
+	// Format result for LLM based on mode using collected data
+	return formatQueryResult(mode, rowCount, executionTime, collectedData), nil
 }
+
+// QueryResultData represents the actual data from a query for LLM sharing
+type QueryResultData struct {
+	ColumnNames []string
+	Rows        [][]interface{}
+	TotalRows   int
+	Truncated   bool
+}
+
+// formatQueryResult formats the query execution result based on the mode
+func formatQueryResult(mode string, rowCount int, executionTime time.Duration, data *QueryResultData) string {
+	switch mode {
+	case "share-results":
+		var result strings.Builder
+		result.WriteString(fmt.Sprintf("Query executed successfully, %d rows returned in %v\n\n", rowCount, executionTime))
+		
+		result.WriteString("Query Results:\n")
+		result.WriteString(strings.Repeat("=", 50) + "\n")
+		
+		// Add column headers
+		result.WriteString("| ")
+		for _, name := range data.ColumnNames {
+			result.WriteString(fmt.Sprintf("%-15s | ", truncateString(name, 15)))
+		}
+		result.WriteString("\n")
+		result.WriteString(strings.Repeat("-", len(data.ColumnNames)*18) + "\n")
+		
+		// Add data rows
+		for _, row := range data.Rows {
+			result.WriteString("| ")
+			for _, value := range row {
+				result.WriteString(fmt.Sprintf("%-15s | ", truncateString(formatValue(value), 15)))
+			}
+			result.WriteString("\n")
+		}
+		
+		if data.Truncated {
+			result.WriteString("... (showing first 50 rows for analysis)\n")
+		}
+		
+		return result.String()
+		
+	case "schema-only":
+		return "Query executed successfully"
+		
+	default: // "default" mode
+		return fmt.Sprintf("Query executed successfully, %d rows returned in %v", rowCount, executionTime)
+	}
+}
+
 
 // validateSafeQuery ensures the query is safe to execute (SELECT/WITH only)
 func validateSafeQuery(sqlQuery string) error {
 	// Clean and normalize the query
 	cleaned := strings.TrimSpace(strings.ToUpper(sqlQuery))
-	
+
 	// Remove comments
 	lines := strings.Split(cleaned, "\n")
 	var cleanedLines []string
@@ -532,7 +619,7 @@ func validateSafeQuery(sqlQuery string) error {
 		}
 	}
 	cleaned = strings.Join(cleanedLines, " ")
-	
+
 	// Remove block comments (/* ... */)
 	for {
 		start := strings.Index(cleaned, "/*")
@@ -545,9 +632,9 @@ func validateSafeQuery(sqlQuery string) error {
 		}
 		cleaned = cleaned[:start] + " " + cleaned[start+end+2:]
 	}
-	
+
 	cleaned = strings.TrimSpace(cleaned)
-	
+
 	// Check for allowed query types
 	allowedPrefixes := []string{"SELECT", "WITH"}
 	for _, prefix := range allowedPrefixes {
@@ -559,7 +646,7 @@ func validateSafeQuery(sqlQuery string) error {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("only SELECT and WITH queries are allowed for security reasons")
 }
 
@@ -568,14 +655,14 @@ func validateQueryContent(query string) error {
 	// List of dangerous functions/patterns to block
 	dangerousPatterns := []string{
 		"PG_SLEEP",
-		"PG_TERMINATE_BACKEND", 
+		"PG_TERMINATE_BACKEND",
 		"PG_CANCEL_BACKEND",
 		"COPY",
 		"\\COPY",
 		"DBLINK",
 		"DBLINK_EXEC",
 		"PERFORM",
-		"DO $$", 
+		"DO $$",
 		"DO $",
 		"CREATE",
 		"DROP",
@@ -590,13 +677,13 @@ func validateQueryContent(query string) error {
 		"SET SESSION",
 		"RESET",
 	}
-	
+
 	for _, pattern := range dangerousPatterns {
 		if strings.Contains(query, pattern) {
 			return fmt.Errorf("query contains potentially dangerous operation: %s", pattern)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -618,38 +705,38 @@ func formatValue(value interface{}) string {
 // formatDatabaseError provides user-friendly error messages for common database errors
 func formatDatabaseError(err error) string {
 	errStr := err.Error()
-	
+
 	// Handle common PostgreSQL error patterns
 	if strings.Contains(errStr, "relation") && strings.Contains(errStr, "does not exist") {
 		return fmt.Sprintf("Table or view not found: %v. Use the list_tables tool to see available tables.", err)
 	}
-	
+
 	if strings.Contains(errStr, "column") && strings.Contains(errStr, "does not exist") {
 		return fmt.Sprintf("Column not found: %v. Use the describe_table tool to see available columns.", err)
 	}
-	
+
 	if strings.Contains(errStr, "syntax error") {
 		return fmt.Sprintf("SQL syntax error: %v. Please check your query syntax.", err)
 	}
-	
+
 	if strings.Contains(errStr, "permission denied") {
 		return fmt.Sprintf("Permission denied: %v. You may not have access to this table or operation.", err)
 	}
-	
+
 	if strings.Contains(errStr, "connection") && (strings.Contains(errStr, "refused") || strings.Contains(errStr, "closed")) {
 		return fmt.Sprintf("Database connection issue: %v. The connection may have been lost. Attempting to reconnect...", err)
 	}
-	
+
 	if strings.Contains(errStr, "dial") || strings.Contains(errStr, "network") || strings.Contains(errStr, "timeout") {
 		return fmt.Sprintf("Network connectivity issue: %v. The database server may be unreachable.", err)
 	}
-	
+
 	// Return original error if no specific pattern matches
 	return fmt.Sprintf("Database error: %v", err)
 }
 
 // createExplainQueryTool creates a tool for analyzing query execution plans
-func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bool) *Tool {
+func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bool, mode string) *Tool {
 	return &Tool{
 		Name:        "explain_query",
 		Description: "Analyze a SQL query's execution plan using EXPLAIN (without actually executing the query). This helps understand query performance and optimization opportunities. IMPORTANT: If the user declines analysis, ask what they want changed or if they prefer a different approach.",
@@ -699,7 +786,7 @@ func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bo
 				}, nil
 			}
 
-			// Execute EXPLAIN on the query
+			// Always execute EXPLAIN to show results to user
 			explainSQL := "EXPLAIN " + sqlQuery
 			result, err := executeExplainQuery(ctx, conn, explainSQL, sqlQuery)
 			if err != nil {
@@ -709,6 +796,15 @@ func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bo
 				}, nil
 			}
 
+			// Conditionally share with LLM based on mode
+			if mode == "schema-only" {
+				return &ToolResult{
+					Content: "EXPLAIN analysis was displayed to the user. Query structure appears well-formed, but execution plan details are not shared in schema-only mode for privacy.",
+					IsError: false,
+				}, nil
+			}
+
+			// For default and share-results modes, share full EXPLAIN with LLM
 			return &ToolResult{
 				Content: result,
 				IsError: false,
@@ -725,10 +821,10 @@ func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, o
 
 	// Record start time
 	startTime := time.Now()
-	
+
 	// Ensure we have a healthy connection
 	conn.EnsureConnection(queryCtx)
-	
+
 	rows, err := conn.Query(queryCtx, explainSQL)
 	if err != nil {
 		// Check for context cancellation and provide appropriate message

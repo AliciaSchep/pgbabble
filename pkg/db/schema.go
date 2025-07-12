@@ -8,11 +8,12 @@ import (
 
 // TableInfo represents information about a database table
 type TableInfo struct {
-	Schema      string
-	Name        string
-	Type        string // table, view, materialized view
-	Description string
-	Columns     []ColumnInfo
+	Schema       string
+	Name         string
+	Type         string // table, view, materialized view
+	Description  string
+	EstimatedRows int64  // Estimated row count from pg_class.reltuples
+	Columns      []ColumnInfo
 }
 
 // ColumnInfo represents information about a table column
@@ -50,18 +51,19 @@ type IndexInfo struct {
 func (c *Connection) ListTables(ctx context.Context) ([]TableInfo, error) {
 	query := `
 		SELECT 
-			schemaname as schema_name,
-			tablename as table_name,
-			'table' as table_type
-		FROM pg_tables 
-		WHERE schemaname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-		UNION ALL
-		SELECT 
-			schemaname as schema_name,
-			viewname as table_name,
-			'view' as table_type
-		FROM pg_views 
-		WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
+			n.nspname as schema_name,
+			c.relname as table_name,
+			CASE c.relkind 
+				WHEN 'r' THEN 'table'
+				WHEN 'v' THEN 'view'
+				WHEN 'm' THEN 'materialized view'
+				ELSE 'other'
+			END as table_type,
+			COALESCE(c.reltuples, 0)::bigint as estimated_rows
+		FROM pg_class c
+		JOIN pg_namespace n ON c.relnamespace = n.oid
+		WHERE c.relkind IN ('r', 'v', 'm')  -- tables, views, materialized views
+		  AND n.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
 		ORDER BY schema_name, table_name
 	`
 
@@ -74,7 +76,7 @@ func (c *Connection) ListTables(ctx context.Context) ([]TableInfo, error) {
 	var tables []TableInfo
 	for rows.Next() {
 		var table TableInfo
-		err := rows.Scan(&table.Schema, &table.Name, &table.Type)
+		err := rows.Scan(&table.Schema, &table.Name, &table.Type, &table.EstimatedRows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan table info: %w", err)
 		}

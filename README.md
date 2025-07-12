@@ -22,6 +22,52 @@ pgbabble --host localhost --port 5432 --user myuser --dbname mydb
 # Use environment variables (like psql)
 export PGHOST=localhost PGUSER=myuser PGDATABASE=mydb
 pgbabble
+
+# Specify data sharing mode (optional)
+pgbabble --mode schema-only "postgresql://user:pass@localhost/mydb"
+```
+
+## Privacy Modes
+
+PGBabble offers three privacy modes to control what information is shared with the LLM:
+
+### `default` (default mode)
+- ✅ **Schema information** (table names, column names, types)
+- ✅ **EXPLAIN query plans** (for query optimization)
+- ✅ **Table size estimates** (approximate row counts)
+- ✅ **Query execution metadata** (row counts, execution time)
+- ❌ **Actual query result data**
+
+*Best for: General database exploration and query development with privacy protection*
+
+### `schema-only` (maximum privacy)
+- ✅ **Schema information** (table names, column names, types)
+- ❌ **EXPLAIN query plans** (execution details hidden)
+- ❌ **Table size estimates** (size information hidden)
+- ❌ **Query execution metadata** (minimal feedback)
+- ❌ **Actual query result data**
+
+*Best for: Highly sensitive databases where only structural information should be shared*
+
+### `share-results` (full access)
+- ✅ **Schema information** (table names, column names, types)
+- ✅ **EXPLAIN query plans** (for query optimization)
+- ✅ **Table size estimates** (approximate row counts)
+- ✅ **Query execution metadata** (row counts, execution time)
+- ✅ **Actual query result data** (limited to 50 rows per query)
+
+*Best for: Development/testing environments where full data access is acceptable*
+
+### Example Usage
+```bash
+# Maximum privacy mode
+pgbabble --mode schema-only "postgresql://user:pass@localhost/mydb"
+
+# Default balanced mode
+pgbabble --mode default "postgresql://user:pass@localhost/mydb"
+
+# Full data sharing mode  
+pgbabble --mode share-results "postgresql://user:pass@localhost/mydb"
 ```
 
 ## Quick Start with Sample Data

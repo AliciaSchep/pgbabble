@@ -48,7 +48,7 @@ func init() {
 	rootCmd.Flags().StringVar(&database, "dbname", "", "Database name (required, or PGDATABASE)")
 	
 	// Application flags
-	rootCmd.Flags().StringVar(&mode, "mode", "default", "Data exposure mode: default, summary_data, full_data")
+	rootCmd.Flags().StringVar(&mode, "mode", "default", "Data exposure mode: default, schema-only, share-results")
 }
 
 func runPGBabble(cmd *cobra.Command, args []string) error {
@@ -77,8 +77,8 @@ func runPGBabble(cmd *cobra.Command, args []string) error {
 	}
 	
 	// Validate mode
-	if mode != "default" && mode != "summary_data" && mode != "full_data" {
-		return fmt.Errorf("invalid mode: %s (must be: default, summary_data, full_data)", mode)
+	if mode != "default" && mode != "schema-only" && mode != "share-results" {
+		return fmt.Errorf("invalid mode: %s (must be: default, schema-only, share-results)", mode)
 	}
 	
 	// Connect to database

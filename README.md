@@ -72,7 +72,8 @@ pgbabble --mode share-results "postgresql://user:pass@localhost/mydb"
 
 ## Quick Start with Sample Data
 
-To test PGBabble with sample data, you can set up a PostgreSQL database with the LEGO dataset:
+To test PGBabble with sample data, you can set up a PostgreSQL database with the LEGO dataset, which includes tables for sets, themes, parts, colors, and more.
+
 
 ### 1. Start PostgreSQL with Docker
 
@@ -127,9 +128,6 @@ pgbabble> /tables            # List all tables
 pgbabble> /describe <table>  # Detailed table structure
 pgbabble> /mode [mode]       # Show or set privacy mode
 ```
-
-The LEGO database includes tables for sets, themes, parts, colors, and more - perfect for testing schema exploration features!
-
 
 ### Example Workflow
 1. Run a natural language query that returns many rows

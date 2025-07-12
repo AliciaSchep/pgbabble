@@ -9,6 +9,7 @@ import (
 	"github.com/chzyer/readline"
 	"pgbabble/pkg/agent"
 	"pgbabble/pkg/db"
+	"pgbabble/pkg/display"
 )
 
 // Session represents an interactive chat session
@@ -125,6 +126,9 @@ func (s *Session) handleCommand(ctx context.Context, cmd string) error {
 			fmt.Println("ℹ️  No conversation to clear")
 		}
 		return nil
+
+	case "/browse", "/b":
+		return s.browseLastResults(ctx)
 		
 	default:
 		return fmt.Errorf("unknown command: %s (type /help for available commands)", parts[0])
@@ -233,6 +237,7 @@ func (s *Session) showHelp() {
 	fmt.Println("  /describe <table>  Describe a specific table")
 	fmt.Println("  /mode [mode]       Show or set data exposure mode")
 	fmt.Println("  /clear, /c         Clear conversation history")
+	fmt.Println("  /browse, /b        Browse last query results in less pager")
 	fmt.Println()
 	fmt.Println("Or just type a natural language question about your data!")
 }
@@ -389,4 +394,39 @@ func (s *Session) setMode(newMode string) error {
 	}
 	
 	return nil
+}
+
+// browseLastResults opens the last query results in less for browsing
+func (s *Session) browseLastResults(ctx context.Context) error {
+	if agent.LastQueryResult == nil {
+		fmt.Println("❌ No query results available to browse")
+		fmt.Println("💡 Run a query first, then use /browse to view all results")
+		return nil
+	}
+
+	if len(agent.LastQueryResult.AllRows) == 0 {
+		fmt.Println("❌ Last query returned no results to browse")
+		return nil
+	}
+
+	// Check if less is available
+	if !display.CheckLessAvailable() {
+		fmt.Println("❌ 'less' command not found on this system")
+		fmt.Println("💡 All available results are already shown above")
+		return nil
+	}
+
+	// Generate the full table content
+	title := fmt.Sprintf("Query Results (%d rows)", len(agent.LastQueryResult.AllRows))
+	content := display.GenerateFullTableContent(
+		agent.LastQueryResult.ColumnNames,
+		agent.LastQueryResult.AllRows,
+		title,
+	)
+
+	// Add query info to the top
+	fullContent := fmt.Sprintf("Query: %s\n\n%s", agent.LastQueryResult.QueryText, content)
+
+	// Open in less
+	return display.PageWithContext(ctx, title, fullContent)
 }

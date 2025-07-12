@@ -9,6 +9,7 @@ A CLI tool for interacting with PostgreSQL databases using natural language quer
 - Interactive chat interface
 - psql-compatible connection handling
 - Schema inspection and exploration
+- **Enhanced visual output** with intelligent column sizing and pagination
 
 ## Usage
 
@@ -121,6 +122,40 @@ pgbabble> /describe lego_themes
 ```
 
 The LEGO database includes tables for sets, themes, parts, colors, and more - perfect for testing schema exploration features!
+
+## Enhanced Visual Output
+
+PGBabble includes intelligent table formatting and pagination features to improve readability of query results:
+
+### Smart Column Sizing
+- **Automatic width detection**: Detects your terminal width and distributes column space intelligently
+- **Content-aware sizing**: Analyzes data to determine optimal column widths
+- **Readable formatting**: Ensures minimum column widths while maximizing use of available space
+
+### Pagination with Less
+- **Initial display**: Shows first 25 rows by default for quick viewing
+- **Browse all results**: Use `/browse` command to view complete results in the `less` pager
+- **Familiar navigation**: Standard `less` controls (space/enter for next page, 'q' to quit, '/' to search)
+- **Large result support**: Handles queries with thousands of rows efficiently
+
+### Interactive Commands
+```
+pgbabble> /help              # Show all available commands
+pgbabble> /browse            # Browse last query results in full
+pgbabble> /schema            # Database overview  
+pgbabble> /tables            # List all tables
+pgbabble> /describe <table>  # Detailed table structure
+pgbabble> /mode [mode]       # Show or set privacy mode
+```
+
+### Example Workflow
+1. Run a natural language query that returns many rows
+2. View the first 25 rows with intelligent column formatting
+3. Type `/browse` to explore all results in the `less` pager
+4. Use standard `less` navigation (space, arrows, search with `/pattern`)
+5. Press 'q' to return to the pgbabble prompt
+
+The enhanced display works seamlessly with all privacy modes and maintains backward compatibility.
 
 ## Development
 

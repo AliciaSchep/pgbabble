@@ -8,10 +8,21 @@ import (
 	"time"
 
 	"pgbabble/pkg/db"
+	"pgbabble/pkg/display"
 )
 
 // QueryTimeout is the default timeout for SQL query execution
 var QueryTimeout = 60 * time.Second
+
+// LastQueryResult stores the most recent query result for browsing
+var LastQueryResult *QueryResultWithData
+
+// QueryResultWithData extends QueryResultData with additional metadata
+type QueryResultWithData struct {
+	QueryResultData
+	AllRows   [][]interface{}
+	QueryText string
+}
 
 // CreateSchemaTools creates all schema inspection tools for the LLM
 func CreateSchemaTools(conn *db.Connection, mode string) []*Tool {
@@ -476,29 +487,9 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 		columnNames[i] = string(fd.Name)
 	}
 
-	// Display results to user (simple table format)
-	fmt.Println("\n📊 Query Results:")
-	fmt.Println(strings.Repeat("=", 50))
-
-	// Print header
-	fmt.Printf("| ")
-	for _, name := range columnNames {
-		fmt.Printf("%-15s | ", truncateString(name, 15))
-	}
-	fmt.Println()
-	fmt.Println(strings.Repeat("-", len(columnNames)*18))
-
-	// Print rows, count them, and optionally collect data for LLM
+	// Collect all rows first for both display and LLM data
+	allRows := make([][]interface{}, 0)
 	rowCount := 0
-	var collectedData *QueryResultData
-	if mode == "share-results" {
-		collectedData = &QueryResultData{
-			ColumnNames: columnNames,
-			Rows:        make([][]interface{}, 0),
-			TotalRows:   0, // Will be set after counting
-			Truncated:   false,
-		}
-	}
 
 	for rows.Next() {
 		values, err := rows.Values()
@@ -506,36 +497,57 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 			return "", fmt.Errorf("%s", formatDatabaseError(err))
 		}
 
-		fmt.Printf("| ")
-		for _, value := range values {
-			fmt.Printf("%-15s | ", truncateString(formatValue(value), 15))
-		}
-		fmt.Println()
-		
-		// Collect data for LLM if in share-results mode (limit to 50 rows)
-		if collectedData != nil && len(collectedData.Rows) < 50 {
-			// Make a copy of values to avoid reference issues
-			rowCopy := make([]interface{}, len(values))
-			copy(rowCopy, values)
-			collectedData.Rows = append(collectedData.Rows, rowCopy)
-		}
+		// Make a copy of values to avoid reference issues
+		rowCopy := make([]interface{}, len(values))
+		copy(rowCopy, values)
+		allRows = append(allRows, rowCopy)
 		
 		rowCount++
 
-		// Limit display to prevent overwhelming output
-		if rowCount >= 100 {
-			fmt.Printf("... (showing first 100 rows)\n")
+		// Limit to prevent overwhelming memory usage
+		if rowCount >= 10000 {
+			fmt.Printf("⚠️  Query returned more than 10,000 rows, limiting display...\n")
 			break
 		}
 	}
 
-	// Finalize collected data
-	if collectedData != nil {
-		collectedData.TotalRows = rowCount
-		if rowCount > 50 {
-			collectedData.Truncated = true
+	// Display results to user with intelligent formatting
+	fmt.Println("\n📊 Query Results:")
+	fmt.Println(strings.Repeat("=", 50))
+
+	if len(allRows) > 0 {
+		// Create table formatter and analyze data
+		formatter := display.NewTableFormatter(columnNames)
+		sampleSize := min(len(allRows), 10)
+		formatter.AnalyzeData(allRows[:sampleSize])
+		widths := formatter.CalculateColumnWidths()
+
+		// Print header
+		fmt.Print(formatter.FormatHeader(widths))
+
+		// Print rows (limit display to 25 for initial view)
+		displayLimit := min(len(allRows), 25)
+		for i := 0; i < displayLimit; i++ {
+			fmt.Print(formatter.FormatRow(allRows[i], widths))
+		}
+
+		if len(allRows) > displayLimit {
+			fmt.Printf("... (showing first %d of %d rows, use /browse to view all)\n", displayLimit, len(allRows))
 		}
 	}
+
+	// Prepare collected data for LLM if in share-results mode
+	var collectedData *QueryResultData
+	if mode == "share-results" {
+		llmRowLimit := min(len(allRows), 50)
+		collectedData = &QueryResultData{
+			ColumnNames: columnNames,
+			Rows:        allRows[:llmRowLimit],
+			TotalRows:   rowCount,
+			Truncated:   len(allRows) > 50,
+		}
+	}
+
 
 	if err := rows.Err(); err != nil {
 		return "", fmt.Errorf("%s", formatDatabaseError(err))
@@ -543,6 +555,18 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 
 	// Calculate execution time
 	executionTime := time.Since(startTime)
+
+	// Store results for browse functionality
+	LastQueryResult = &QueryResultWithData{
+		QueryResultData: QueryResultData{
+			ColumnNames: columnNames,
+			Rows:        allRows,
+			TotalRows:   rowCount,
+			Truncated:   false,
+		},
+		AllRows:   allRows,
+		QueryText: sqlQuery,
+	}
 
 	fmt.Printf("\n✅ Query executed successfully (%d rows in %v)\n\n", rowCount, executionTime)
 
@@ -891,4 +915,12 @@ func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, o
 	fmt.Printf("\n✅ EXPLAIN completed (%d plan lines in %v)\n\n", len(planLines), executionTime)
 
 	return result.String(), nil
+}
+
+// min returns the smaller of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

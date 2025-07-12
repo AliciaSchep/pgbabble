@@ -1,15 +1,14 @@
 # PGBabble
 
-A CLI tool for interacting with PostgreSQL databases using natural language queries powered by LLMs.
+A CLI tool for interacting with PostgreSQL databases using natural language queries powered by LLMs, while restricting what data is shared back to LLM and keeping a human-in-the-loop for query approval.
 
 ## Features
 
 - Natural language to SQL conversion
-- Privacy-first design (no data sent to LLM by default)
+- Privacy-first design (only metadata sent to LLM by default)
 - Interactive chat interface
 - psql-compatible connection handling
 - Schema inspection and exploration
-- **Enhanced visual output** with intelligent column sizing and pagination
 
 ## Usage
 
@@ -48,7 +47,7 @@ PGBabble offers three privacy modes to control what information is shared with t
 - ❌ **Query execution metadata** (minimal feedback)
 - ❌ **Actual query result data**
 
-*Best for: Highly sensitive databases where only structural information should be shared*
+*Best for: Highly sensitive databases where even table size and query result counts should not be shared*
 
 ### `share-results` (full access)
 - ✅ **Schema information** (table names, column names, types)
@@ -110,35 +109,16 @@ go build -o pgbabble cmd/pgbabble/main.go
 ./pgbabble "postgresql://postgres:password@localhost/lego"
 ```
 
-### 4. Explore the Database
+### 4. Ask LLM to help with queries
 
-Once connected, try these commands:
+Once connected, try asking about the data or for specific queries:
 ```
-pgbabble> /help              # Show all available commands
-pgbabble> /schema            # Database overview
-pgbabble> /tables            # List all tables
-pgbabble> /describe lego_sets  # Detailed table structure
-pgbabble> /describe lego_themes
+pgbabble> Can you describe what tables are in this database?
+pgbabble> How many themes have a parent theme?
+pgbabble> Can you provide a summary of all colors and how many parts they are used in?
 ```
 
-The LEGO database includes tables for sets, themes, parts, colors, and more - perfect for testing schema exploration features!
-
-## Enhanced Visual Output
-
-PGBabble includes intelligent table formatting and pagination features to improve readability of query results:
-
-### Smart Column Sizing
-- **Automatic width detection**: Detects your terminal width and distributes column space intelligently
-- **Content-aware sizing**: Analyzes data to determine optimal column widths
-- **Readable formatting**: Ensures minimum column widths while maximizing use of available space
-
-### Pagination with Less
-- **Initial display**: Shows first 25 rows by default for quick viewing
-- **Browse all results**: Use `/browse` command to view complete results in the `less` pager
-- **Familiar navigation**: Standard `less` controls (space/enter for next page, 'q' to quit, '/' to search)
-- **Large result support**: Handles queries with thousands of rows efficiently
-
-### Interactive Commands
+### 5. Use Interactive Commands
 ```
 pgbabble> /help              # Show all available commands
 pgbabble> /browse            # Browse last query results in full
@@ -147,6 +127,9 @@ pgbabble> /tables            # List all tables
 pgbabble> /describe <table>  # Detailed table structure
 pgbabble> /mode [mode]       # Show or set privacy mode
 ```
+
+The LEGO database includes tables for sets, themes, parts, colors, and more - perfect for testing schema exploration features!
+
 
 ### Example Workflow
 1. Run a natural language query that returns many rows

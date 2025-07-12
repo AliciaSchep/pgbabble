@@ -6,6 +6,7 @@ A CLI tool for interacting with PostgreSQL databases using natural language quer
 
 - Natural language to SQL conversion
 - Privacy-first design (only metadata sent to LLM by default)
+- Security-minded design -- human is required to approve any LLM-generated SQL queries before they are run. 
 - Interactive chat interface
 - psql-compatible connection handling
 - Schema inspection and exploration

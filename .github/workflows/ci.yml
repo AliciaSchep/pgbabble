@@ -24,8 +24,9 @@ jobs:
     - name: Check formatting
       run: |
         make fmt
+        go mod tidy
         if ! git diff --exit-code; then
-          echo "Code is not formatted. Run 'make fmt' to fix."
+          echo "Code is not formatted or modules need tidying. Run 'make fmt && go mod tidy' to fix."
           exit 1
         fi
 

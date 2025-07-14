@@ -31,7 +31,7 @@ func NewAgent(apiKey string) (*Agent, error) {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
 	if apiKey == "" {
-		return nil, fmt.Errorf("Anthropic API key is required (set ANTHROPIC_API_KEY environment variable)")
+		return nil, fmt.Errorf("anthropic API key is required (set ANTHROPIC_API_KEY environment variable)")
 	}
 
 	client := anthropic.NewClient(option.WithAPIKey(apiKey))

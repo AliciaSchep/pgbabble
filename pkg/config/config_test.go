@@ -150,9 +150,13 @@ func TestNewDBConfigFromFlags(t *testing.T) {
 		// Restore original environment
 		for key, value := range originalEnv {
 			if value == "" {
-				os.Unsetenv(key)
+				if err := os.Unsetenv(key); err != nil {
+					t.Logf("failed to unset env var %s: %v", key, err)
+				}
 			} else {
-				os.Setenv(key, value)
+				if err := os.Setenv(key, value); err != nil {
+					t.Logf("failed to set env var %s: %v", key, err)
+				}
 			}
 		}
 	}()
@@ -254,17 +258,18 @@ func TestNewDBConfigFromFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear environment
-			os.Unsetenv("PGHOST")
-			os.Unsetenv("PGPORT")
-			os.Unsetenv("PGUSER")
-			os.Unsetenv("PGPASSWORD")
-			os.Unsetenv("PGDATABASE")
-			os.Unsetenv("PGSSLMODE")
-			os.Unsetenv("USER")
+			envVarsToUnset := []string{"PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE", "PGSSLMODE", "USER"}
+			for _, envVar := range envVarsToUnset {
+				if err := os.Unsetenv(envVar); err != nil {
+					t.Logf("failed to unset %s: %v", envVar, err)
+				}
+			}
 
 			// Set test environment variables
 			for key, value := range tt.envVars {
-				os.Setenv(key, value)
+				if err := os.Setenv(key, value); err != nil {
+					t.Fatalf("failed to set env var %s: %v", key, err)
+				}
 			}
 
 			config := NewDBConfigFromFlags(tt.host, tt.user, tt.password, tt.database, tt.port)

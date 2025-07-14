@@ -40,7 +40,11 @@ func (s *Session) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize readline: %w", err)
 	}
-	defer rl.Close()
+	defer func() {
+		if err := rl.Close(); err != nil {
+			fmt.Printf("Warning: failed to close readline: %v\n", err)
+		}
+	}()
 
 	s.rl = rl
 

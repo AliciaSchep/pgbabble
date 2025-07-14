@@ -16,7 +16,7 @@ func TestNewAgent(t *testing.T) {
 		t.Errorf("unexpected error creating agent: %v", err)
 	}
 	if agent == nil {
-		t.Error("expected non-nil agent")
+		t.Fatal("expected non-nil agent")
 	}
 	if len(agent.tools) != 0 {
 		t.Error("expected empty tools on creation")
@@ -26,8 +26,14 @@ func TestNewAgent(t *testing.T) {
 	}
 
 	// Test with empty API key but environment variable set
-	os.Setenv("ANTHROPIC_API_KEY", "env-api-key")
-	defer os.Unsetenv("ANTHROPIC_API_KEY")
+	if err := os.Setenv("ANTHROPIC_API_KEY", "env-api-key"); err != nil {
+		t.Fatalf("failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("ANTHROPIC_API_KEY"); err != nil {
+			t.Logf("failed to unset environment variable: %v", err)
+		}
+	}()
 
 	agent2, err := NewAgent("")
 	if err != nil {
@@ -38,7 +44,9 @@ func TestNewAgent(t *testing.T) {
 	}
 
 	// Test with no API key
-	os.Unsetenv("ANTHROPIC_API_KEY")
+	if err := os.Unsetenv("ANTHROPIC_API_KEY"); err != nil {
+		t.Logf("failed to unset environment variable: %v", err)
+	}
 	agent3, err := NewAgent("")
 	if err == nil {
 		t.Error("expected error when no API key provided")
@@ -182,7 +190,7 @@ func TestConvertToolToDefinition_ErrorHandling(t *testing.T) {
 
 	// Test with invalid JSON input
 	invalidInput := json.RawMessage(`{invalid json}`)
-	result, err = toolDef.Function(invalidInput)
+	_, err = toolDef.Function(invalidInput)
 	if err == nil {
 		t.Error("expected error with invalid JSON input")
 	}

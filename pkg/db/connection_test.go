@@ -186,6 +186,7 @@ func TestConnection_EnsureConnection(t *testing.T) {
 			if tt.initialPool {
 				// We can't create a real connection in unit tests without a DB
 				// so we just test the logic path
+				t.Log("Testing with initial pool connection scenario")
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

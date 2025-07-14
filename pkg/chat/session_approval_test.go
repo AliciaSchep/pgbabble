@@ -166,12 +166,12 @@ func TestConversationClearWorkflow(t *testing.T) {
 	}
 
 	// This simulates the /clear command logic
+	// When agent is not ready, there's nothing to clear
 	if session.agentReady {
-		// Would call s.agent.ClearConversation()
-		// Would print "🧹 Conversation history cleared"
-	} else {
-		// Would print "ℹ️  No conversation to clear"
+		// Would call s.agent.ClearConversation() in real implementation
+		t.Log("Would clear conversation history")
 	}
+	// Note: when agent is not ready, no action needed
 
 	// Test when agent is ready (simulated)
 	session.agentReady = true

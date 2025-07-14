@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 // Tool represents a function that the LLM can call
@@ -89,7 +90,10 @@ func (ch *ConversationHistory) AddToolResult(toolUseID string, result *ToolResul
 			default:
 				// Try to unmarshal from JSON
 				if jsonBytes, err := json.Marshal(content); err == nil {
-					json.Unmarshal(jsonBytes, &blocks)
+					if err := json.Unmarshal(jsonBytes, &blocks); err != nil {
+						// If unmarshal fails, fall back to string representation
+						blocks = []ContentBlock{{Type: "text", Text: fmt.Sprintf("%v", content)}}
+					}
 				}
 			}
 

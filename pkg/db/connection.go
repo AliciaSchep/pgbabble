@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/AliciaSchep/pgbabble/pkg/config"
+	"github.com/jackc/pgx/v5"
 )
 
 // Connection wraps a PostgreSQL connection
@@ -29,7 +29,9 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*Connection, error) {
 
 	// Test the connection
 	if err := conn.Ping(ctx); err != nil {
-		conn.Close(ctx)
+		if closeErr := conn.Close(ctx); closeErr != nil {
+			fmt.Printf("Warning: failed to close connection: %v\n", closeErr)
+		}
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -42,10 +44,11 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*Connection, error) {
 // Close closes the database connection
 func (c *Connection) Close() {
 	if c.conn != nil {
-		c.conn.Close(context.Background())
+		if err := c.conn.Close(context.Background()); err != nil {
+			fmt.Printf("Warning: failed to close connection: %v\n", err)
+		}
 	}
 }
-
 
 // Query executes a query and returns the rows
 func (c *Connection) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
@@ -64,13 +67,15 @@ func (c *Connection) EnsureConnection(ctx context.Context) {
 		c.reconnectWithRetry(ctx)
 		return
 	}
-	
+
 	// Check if connection is alive
 	err := c.conn.Ping(ctx)
 	for err != nil {
 		fmt.Print("Connection to PostgreSQL was lost. Waiting 5s...")
 		if c.conn != nil {
-			c.conn.Close(ctx)
+			if err := c.conn.Close(ctx); err != nil {
+				fmt.Printf("Warning: failed to close connection: %v\n", err)
+			}
 		}
 		time.Sleep(5 * time.Second)
 		fmt.Print(" reconnecting...")
@@ -93,7 +98,9 @@ func (c *Connection) reconnectWithRetry(ctx context.Context) {
 	// Test the connection
 	if err := conn.Ping(ctx); err != nil {
 		fmt.Printf(" failed to ping: %v\n", err)
-		conn.Close(ctx)
+		if closeErr := conn.Close(ctx); closeErr != nil {
+			fmt.Printf("Warning: failed to close connection: %v\n", closeErr)
+		}
 		return
 	}
 

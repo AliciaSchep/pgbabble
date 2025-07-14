@@ -11,19 +11,19 @@ func TestFormatQueryResult(t *testing.T) {
 	rowCount := 3
 
 	tests := []struct {
-		name             string
-		mode             string
-		data             *QueryResultData
-		expectRowCount   bool
-		expectActualData bool
-		expectedContains []string
+		name                string
+		mode                string
+		data                *QueryResultData
+		expectRowCount      bool
+		expectActualData    bool
+		expectedContains    []string
 		expectedNotContains []string
 	}{
 		{
-			name:           "default mode with no data",
-			mode:           "default",
-			data:           nil,
-			expectRowCount: true,
+			name:             "default mode with no data",
+			mode:             "default",
+			data:             nil,
+			expectRowCount:   true,
 			expectActualData: false,
 			expectedContains: []string{
 				"Query executed successfully",
@@ -35,10 +35,10 @@ func TestFormatQueryResult(t *testing.T) {
 			},
 		},
 		{
-			name:           "schema-only mode with no data",
-			mode:           "schema-only", 
-			data:           nil,
-			expectRowCount: false,
+			name:             "schema-only mode with no data",
+			mode:             "schema-only",
+			data:             nil,
+			expectRowCount:   false,
 			expectActualData: false,
 			expectedContains: []string{
 				"Query executed successfully",
@@ -62,7 +62,7 @@ func TestFormatQueryResult(t *testing.T) {
 				TotalRows: 3,
 				Truncated: false,
 			},
-			expectRowCount: true,
+			expectRowCount:   true,
 			expectActualData: true,
 			expectedContains: []string{
 				"Query executed successfully",
@@ -93,7 +93,7 @@ func TestFormatQueryResult(t *testing.T) {
 				TotalRows: 100,
 				Truncated: true,
 			},
-			expectRowCount: true,
+			expectRowCount:   true,
 			expectActualData: true,
 			expectedContains: []string{
 				"Query executed successfully",
@@ -132,7 +132,7 @@ func TestFormatQueryResult(t *testing.T) {
 				t.Error("expected row count to be present but it was missing")
 			}
 			if !tt.expectRowCount && containsRowCount {
-				t.Error("expected row count to be absent but it was present") 
+				t.Error("expected row count to be absent but it was present")
 			}
 
 			// Verify actual data behavior
@@ -200,11 +200,11 @@ func TestModeBasedPrivacyLevels(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mode           string
-		data           *QueryResultData
-		privacyLevel   string
-		dataLeakage    bool
+		name         string
+		mode         string
+		data         *QueryResultData
+		privacyLevel string
+		dataLeakage  bool
 	}{
 		{
 			name:         "schema-only provides maximum privacy",
@@ -214,7 +214,7 @@ func TestModeBasedPrivacyLevels(t *testing.T) {
 			dataLeakage:  false,
 		},
 		{
-			name:         "default provides metadata privacy", 
+			name:         "default provides metadata privacy",
 			mode:         "default",
 			data:         sampleData,
 			privacyLevel: "metadata",
@@ -222,7 +222,7 @@ func TestModeBasedPrivacyLevels(t *testing.T) {
 		},
 		{
 			name:         "share-results provides full data access",
-			mode:         "share-results", 
+			mode:         "share-results",
 			data:         sampleData,
 			privacyLevel: "none",
 			dataLeakage:  true,
@@ -264,7 +264,7 @@ func TestExplainModeFiltering(t *testing.T) {
 			expectedMsg:    "",
 		},
 		{
-			name:           "share-results mode allows EXPLAIN", 
+			name:           "share-results mode allows EXPLAIN",
 			mode:           "share-results",
 			expectFiltered: false,
 			expectedMsg:    "",
@@ -281,7 +281,7 @@ func TestExplainModeFiltering(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test the actual filtering logic from the EXPLAIN tool
 			var result string
-			
+
 			// This mirrors the actual logic in createExplainQueryTool handler
 			if tt.mode == "schema-only" {
 				result = "EXPLAIN analysis was displayed to the user. Query structure appears well-formed, but execution plan details are not shared in schema-only mode for privacy."

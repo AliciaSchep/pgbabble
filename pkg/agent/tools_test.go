@@ -27,7 +27,7 @@ func TestMarshalToolsToJSON(t *testing.T) {
 			},
 		},
 		{
-			Name:        "test_tool_2", 
+			Name:        "test_tool_2",
 			Description: "Second test tool",
 			InputSchema: ToolSchema{
 				Type:       "object",

@@ -79,7 +79,9 @@ func TestToolRegistry_GetTool(t *testing.T) {
 		},
 	}
 
-	registry.RegisterTool(tool)
+	if err := registry.RegisterTool(tool); err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
 
 	// Test getting existing tool
 	retrieved, exists := registry.GetTool("test_tool")
@@ -110,7 +112,9 @@ func TestToolRegistry_ExecuteTool(t *testing.T) {
 		},
 	}
 
-	registry.RegisterTool(tool)
+	if err := registry.RegisterTool(tool); err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
 
 	// Test executing existing tool
 	result, err := registry.ExecuteTool(ctx, "test_tool", map[string]interface{}{})
@@ -150,8 +154,12 @@ func TestToolRegistry_ListToolNames(t *testing.T) {
 		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) { return nil, nil },
 	}
 
-	registry.RegisterTool(tool1)
-	registry.RegisterTool(tool2)
+	if err := registry.RegisterTool(tool1); err != nil {
+		t.Fatalf("failed to register tool1: %v", err)
+	}
+	if err := registry.RegisterTool(tool2); err != nil {
+		t.Fatalf("failed to register tool2: %v", err)
+	}
 
 	names = registry.ListToolNames()
 	if len(names) != 2 {
@@ -180,7 +188,9 @@ func TestToolRegistry_RemoveTool(t *testing.T) {
 		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) { return nil, nil },
 	}
 
-	registry.RegisterTool(tool)
+	if err := registry.RegisterTool(tool); err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
 
 	// Test removing existing tool
 	removed := registry.RemoveTool("test_tool")
@@ -214,8 +224,12 @@ func TestToolRegistry_Clear(t *testing.T) {
 		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) { return nil, nil },
 	}
 
-	registry.RegisterTool(tool1)
-	registry.RegisterTool(tool2)
+	if err := registry.RegisterTool(tool1); err != nil {
+		t.Fatalf("failed to register tool1: %v", err)
+	}
+	if err := registry.RegisterTool(tool2); err != nil {
+		t.Fatalf("failed to register tool2: %v", err)
+	}
 
 	// Clear registry
 	registry.Clear()

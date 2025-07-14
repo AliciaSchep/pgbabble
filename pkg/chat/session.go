@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/chzyer/readline"
 	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 	"github.com/AliciaSchep/pgbabble/pkg/display"
+	"github.com/chzyer/readline"
 )
 
 // Session represents an interactive chat session
@@ -40,13 +40,17 @@ func (s *Session) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize readline: %w", err)
 	}
-	defer rl.Close()
-	
+	defer func() {
+		if err := rl.Close(); err != nil {
+			fmt.Printf("Warning: failed to close readline: %v\n", err)
+		}
+	}()
+
 	s.rl = rl
-	
+
 	// Initialize agent if API key is available
 	s.initializeAgent()
-	
+
 	// Main chat loop
 	for {
 		line, err := rl.Readline()
@@ -60,12 +64,12 @@ func (s *Session) Start(ctx context.Context) error {
 			}
 			break
 		}
-		
+
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		
+
 		// Handle commands
 		if strings.HasPrefix(line, "/") {
 			if err := s.handleCommand(ctx, line); err != nil {
@@ -73,13 +77,13 @@ func (s *Session) Start(ctx context.Context) error {
 			}
 			continue
 		}
-		
+
 		// Handle natural language queries
 		if err := s.handleQuery(ctx, line); err != nil {
 			fmt.Printf("Error: %v\n", err)
 		}
 	}
-	
+
 	fmt.Println("Goodbye!")
 	return nil
 }
@@ -90,26 +94,26 @@ func (s *Session) handleCommand(ctx context.Context, cmd string) error {
 	if len(parts) == 0 {
 		return nil
 	}
-	
+
 	switch parts[0] {
 	case "/quit", "/exit", "/q":
 		os.Exit(0)
-		
+
 	case "/help", "/h":
 		s.showHelp()
-		
+
 	case "/schema", "/s":
 		return s.showSchema(ctx)
-		
+
 	case "/tables", "/t":
 		return s.listTables(ctx)
-		
+
 	case "/describe", "/d":
 		if len(parts) < 2 {
 			return fmt.Errorf("usage: /describe <table_name>")
 		}
 		return s.describeTable(ctx, parts[1])
-		
+
 	case "/mode", "/m":
 		if len(parts) < 2 {
 			fmt.Printf("Current mode: %s\n", s.mode)
@@ -129,11 +133,11 @@ func (s *Session) handleCommand(ctx context.Context, cmd string) error {
 
 	case "/browse", "/b":
 		return s.browseLastResults(ctx)
-		
+
 	default:
 		return fmt.Errorf("unknown command: %s (type /help for available commands)", parts[0])
 	}
-	
+
 	return nil
 }
 
@@ -201,17 +205,16 @@ func (s *Session) initializeAgent() {
 	fmt.Println()
 }
 
-
 // getUserApproval prompts the user to approve a SQL query execution
 func (s *Session) getUserApproval(queryInfo string) bool {
 	fmt.Println("\n🔍 SQL Query Ready for Execution:")
 	fmt.Println(strings.Repeat("=", 50))
 	fmt.Println(queryInfo)
 	fmt.Println(strings.Repeat("=", 50))
-	
+
 	// Change the readline prompt temporarily for this question
 	s.rl.SetPrompt("Execute this query? (y/yes/n/no): ")
-	
+
 	response, err := s.rl.Readline()
 	if err != nil {
 		fmt.Printf("Error reading input: %v\n", err)
@@ -248,30 +251,30 @@ func (s *Session) showSchema(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get schema: %w", err)
 	}
-	
+
 	if len(tables) == 0 {
 		fmt.Println("No tables found in the database.")
 		return nil
 	}
-	
+
 	fmt.Println("Database Schema Overview:")
 	fmt.Println("========================")
-	
+
 	// Group by schema
 	schemaMap := make(map[string][]db.TableInfo)
 	for _, table := range tables {
 		schemaMap[table.Schema] = append(schemaMap[table.Schema], table)
 	}
-	
+
 	for schema, schemaTables := range schemaMap {
 		fmt.Printf("\nSchema: %s\n", schema)
 		fmt.Println(strings.Repeat("-", len(schema)+8))
-		
+
 		for _, table := range schemaTables {
 			fmt.Printf("  %s (%s)\n", table.Name, table.Type)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -281,19 +284,19 @@ func (s *Session) listTables(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to list tables: %w", err)
 	}
-	
+
 	if len(tables) == 0 {
 		fmt.Println("No tables found in the database.")
 		return nil
 	}
-	
+
 	fmt.Println("Tables and Views:")
 	fmt.Println("=================")
-	
+
 	for _, table := range tables {
 		fmt.Printf("%-20s %-10s %s\n", table.Name, table.Type, table.Schema)
 	}
-	
+
 	return nil
 }
 
@@ -308,63 +311,63 @@ func (s *Session) describeTable(ctx context.Context, tableName string) error {
 			tableName = parts[1]
 		}
 	}
-	
+
 	table, err := s.conn.DescribeTable(ctx, schema, tableName)
 	if err != nil {
 		return fmt.Errorf("failed to describe table: %w", err)
 	}
-	
+
 	fmt.Printf("Table: %s.%s (%s)\n", table.Schema, table.Name, table.Type)
 	if table.Description != "" {
 		fmt.Printf("Description: %s\n", table.Description)
 	}
 	fmt.Println()
-	
+
 	if len(table.Columns) == 0 {
 		fmt.Println("No columns found.")
 		return nil
 	}
-	
+
 	fmt.Println("Columns:")
 	fmt.Println("========")
 	fmt.Printf("%-20s %-15s %-8s %-8s %s\n", "Name", "Type", "Nullable", "Key", "Default")
 	fmt.Println(strings.Repeat("-", 70))
-	
+
 	for _, col := range table.Columns {
 		nullable := "YES"
 		if !col.IsNullable {
 			nullable = "NO"
 		}
-		
+
 		key := ""
 		if col.IsPrimaryKey {
 			key = "PK"
 		}
-		
+
 		defaultVal := col.Default
 		if defaultVal == "" {
 			defaultVal = "(none)"
 		}
-		
-		fmt.Printf("%-20s %-15s %-8s %-8s %s\n", 
+
+		fmt.Printf("%-20s %-15s %-8s %-8s %s\n",
 			col.Name, col.DataType, nullable, key, defaultVal)
 	}
-	
+
 	// Show foreign keys if any
 	foreignKeys, err := s.conn.GetForeignKeys(ctx, schema, tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get foreign keys: %w", err)
 	}
-	
+
 	if len(foreignKeys) > 0 {
 		fmt.Println("\nForeign Keys:")
 		fmt.Println("=============")
 		for _, fk := range foreignKeys {
-			fmt.Printf("%s -> %s.%s.%s\n", 
+			fmt.Printf("%s -> %s.%s.%s\n",
 				fk.ColumnName, fk.ForeignTableSchema, fk.ForeignTableName, fk.ForeignColumnName)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -375,15 +378,15 @@ func (s *Session) setMode(newMode string) error {
 		"schema-only":   true,
 		"share-results": true,
 	}
-	
+
 	if !validModes[newMode] {
 		return fmt.Errorf("invalid mode: %s (valid modes: default, schema-only, share-results)", newMode)
 	}
-	
+
 	oldMode := s.mode
 	s.mode = newMode
 	fmt.Printf("Mode changed from '%s' to '%s'\n", oldMode, newMode)
-	
+
 	switch newMode {
 	case "default":
 		fmt.Println("Default mode: EXPLAIN sharing allowed, table size info shared, query row counts shared, but no actual query result data")
@@ -392,7 +395,7 @@ func (s *Session) setMode(newMode string) error {
 	case "share-results":
 		fmt.Println("Share-results mode: Full data sharing including EXPLAIN results, table sizes, and actual query result data")
 	}
-	
+
 	return nil
 }
 

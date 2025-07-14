@@ -45,14 +45,13 @@
 * **Transaction safety**: Ensure proper transaction rollback on errors
 * **Network error recovery**: Handle network interruptions gracefully with retry mechanisms
 
-### CI workflow  
+### CI workflow
 * **Basic automation**: Setup GitHub Actions to run test suite on all PRs and pushes
 * **Cross-platform builds**: Build binaries for Linux, macOS, and Windows
 * **Security scanning**: Add vulnerability scanning for dependencies
 * **Release automation**: Automate release creation with tagged versions
 * **Artifact publishing**: Publish binaries to GitHub releases
 * **Code quality checks**: Integrate linting and formatting checks
-* **Performance regression testing**: Run benchmarks to detect performance issues
 
 ---
 

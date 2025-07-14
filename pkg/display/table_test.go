@@ -65,11 +65,11 @@ func TestGenerateFullTableContent(t *testing.T) {
 	}
 
 	content := GenerateFullTableContent(columnNames, rows, "Test Results")
-	
+
 	if !strings.Contains(content, "Test Results") {
 		t.Error("Content should contain the title")
 	}
-	
+
 	if !strings.Contains(content, "Alice") || !strings.Contains(content, "Bob") {
 		t.Error("Content should contain the row data")
 	}

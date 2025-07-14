@@ -7,10 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/spf13/cobra"
+	"github.com/AliciaSchep/pgbabble/pkg/chat"
 	"github.com/AliciaSchep/pgbabble/pkg/config"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
-	"github.com/AliciaSchep/pgbabble/pkg/chat"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 	user     string
 	password string
 	database string
-	
+
 	// Application flags
 	mode string
 )
@@ -46,7 +46,7 @@ func init() {
 	rootCmd.Flags().StringVar(&user, "user", "", "Database user (default: current user, or PGUSER)")
 	rootCmd.Flags().StringVar(&password, "password", "", "Database password (or PGPASSWORD)")
 	rootCmd.Flags().StringVar(&database, "dbname", "", "Database name (required, or PGDATABASE)")
-	
+
 	// Application flags
 	rootCmd.Flags().StringVar(&mode, "mode", "default", "Data exposure mode: default, schema-only, share-results")
 }
@@ -55,10 +55,10 @@ func runPGBabble(cmd *cobra.Command, args []string) error {
 	// Create cancellable context that responds to interrupt signals
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	
+
 	var dbConfig *config.DBConfig
 	var err error
-	
+
 	// Determine if we have a URI argument or should use flags
 	if len(args) == 1 {
 		// Parse URI
@@ -70,33 +70,33 @@ func runPGBabble(cmd *cobra.Command, args []string) error {
 		// Use flags and environment variables
 		dbConfig = config.NewDBConfigFromFlags(host, user, password, database, port)
 	}
-	
+
 	// Validate configuration
 	if err := dbConfig.Validate(); err != nil {
 		return fmt.Errorf("invalid database configuration: %w", err)
 	}
-	
+
 	// Validate mode
 	if mode != "default" && mode != "schema-only" && mode != "share-results" {
 		return fmt.Errorf("invalid mode: %s (must be: default, schema-only, share-results)", mode)
 	}
-	
+
 	// Connect to database
-	fmt.Printf("Connecting to PostgreSQL database: %s@%s:%d/%s\n", 
+	fmt.Printf("Connecting to PostgreSQL database: %s@%s:%d/%s\n",
 		dbConfig.User, dbConfig.Host, dbConfig.Port, dbConfig.Database)
-	
+
 	conn, err := db.Connect(ctx, dbConfig)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	defer conn.Close()
-	
+
 	// Get database info
 	dbInfo, err := conn.GetDatabaseInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get database info: %w", err)
 	}
-	
+
 	fmt.Printf("Connected successfully!\n")
 	fmt.Printf("Database: %s\n", dbInfo.Database)
 	fmt.Printf("User: %s\n", dbInfo.User)
@@ -104,7 +104,7 @@ func runPGBabble(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Mode: %s\n", mode)
 	fmt.Println("Type /help for commands, /quit to exit")
 	fmt.Println()
-	
+
 	// Start interactive chat with cancellable context
 	chatSession := chat.NewSession(conn, mode)
 	return chatSession.Start(ctx)

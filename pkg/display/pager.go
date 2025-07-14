@@ -25,7 +25,7 @@ func PageResult(title string, content string) error {
 
 	// Start the command and wait for completion
 	fmt.Printf("📖 Opening %s in less (press 'q' to exit)...\n", title)
-	
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running less: %w", err)
 	}
@@ -123,7 +123,7 @@ func PageWithContext(ctx context.Context, title string, content string) error {
 	cmd.Stderr = os.Stderr
 
 	fmt.Printf("📖 Opening %s in less (press 'q' to exit)...\n", title)
-	
+
 	if err := cmd.Run(); err != nil {
 		// Check if it was cancelled due to context
 		if ctx.Err() != nil {

@@ -8,17 +8,17 @@ import (
 func TestCheckLessAvailable(t *testing.T) {
 	// This test will depend on the system, but we can at least ensure it returns a boolean
 	available := CheckLessAvailable()
-	
+
 	// Should return either true or false, not panic
 	_ = available
 }
 
 func TestGenerateFullTableContentDetailed(t *testing.T) {
 	tests := []struct {
-		name        string
-		columnNames []string
-		rows        [][]interface{}
-		title       string
+		name           string
+		columnNames    []string
+		rows           [][]interface{}
+		title          string
 		expectContains []string
 	}{
 		{
@@ -32,7 +32,7 @@ func TestGenerateFullTableContentDetailed(t *testing.T) {
 			expectContains: []string{
 				"📊 User Data",
 				"id",
-				"name", 
+				"name",
 				"age",
 				"Alice",
 				"Bob",
@@ -72,7 +72,7 @@ func TestGenerateFullTableContentDetailed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			content := GenerateFullTableContent(tt.columnNames, tt.rows, tt.title)
-			
+
 			for _, expected := range tt.expectContains {
 				if !strings.Contains(content, expected) {
 					t.Errorf("Expected content to contain '%s', but it didn't.\nContent: %s", expected, content)
@@ -126,7 +126,7 @@ func TestPageQueryResult(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Note: This test doesn't actually invoke less since that would be system-dependent
 			// and interactive. Instead we're testing the data preparation logic.
-			
+
 			if tt.data == nil || len(tt.data.Rows) == 0 {
 				// These cases should return early without error
 				err := PageQueryResult(tt.data, tt.queryInfo)
@@ -142,11 +142,11 @@ func TestPageQueryResult(t *testing.T) {
 			// For valid data, test that content generation works
 			title := "Query Results (2 rows)"
 			content := GenerateFullTableContent(tt.data.ColumnNames, tt.data.Rows, title)
-			
+
 			if !strings.Contains(content, "Alice") {
 				t.Error("Generated content should contain sample data")
 			}
-			
+
 			if !strings.Contains(content, tt.queryInfo) == false {
 				// We expect the query info to be included when calling PageQueryResult
 				fullContent := tt.queryInfo + "\n\n" + content

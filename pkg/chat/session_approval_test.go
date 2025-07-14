@@ -9,7 +9,7 @@ import (
 func TestGetUserApproval_Logic(t *testing.T) {
 	// Test query info formatting
 	queryInfo := "Test query explanation\n\nSQL Query:\nSELECT * FROM users"
-	
+
 	// Verify the query info is properly formatted (this is what would be shown to user)
 	if !strings.Contains(queryInfo, "Test query explanation") {
 		t.Error("expected queryInfo to contain explanation")
@@ -41,7 +41,7 @@ func TestUserApprovalResponseParsing(t *testing.T) {
 		{"", false},
 		{"maybe", false},
 		{"quit", false},
-		{"  y  ", true},  // Test trimming
+		{"  y  ", true},   // Test trimming
 		{"  no  ", false}, // Test trimming
 	}
 
@@ -50,7 +50,7 @@ func TestUserApprovalResponseParsing(t *testing.T) {
 			// Simulate the response parsing logic from getUserApproval
 			response := strings.ToLower(strings.TrimSpace(tt.input))
 			actual := response == "y" || response == "yes"
-			
+
 			if actual != tt.expected {
 				t.Errorf("input '%s': expected %v, got %v", tt.input, tt.expected, actual)
 			}
@@ -108,28 +108,28 @@ func TestExecuteSQLToolWorkflow(t *testing.T) {
 func TestSQLQueryInfoFormatting(t *testing.T) {
 	explanation := "Find all users with recent activity"
 	sqlQuery := "SELECT u.id, u.name, u.last_login FROM users u WHERE u.last_login > NOW() - INTERVAL '7 days'"
-	
+
 	// This mimics the formatting in the execute_sql tool
 	queryInfo := explanation + "\n\nSQL Query:\n" + sqlQuery
-	
+
 	// Verify the format matches what getUserApproval expects
 	lines := strings.Split(queryInfo, "\n")
 	if len(lines) < 3 {
 		t.Error("expected at least 3 lines in formatted query info")
 	}
-	
+
 	if lines[0] != explanation {
 		t.Errorf("expected first line to be explanation, got '%s'", lines[0])
 	}
-	
+
 	if lines[1] != "" {
 		t.Error("expected second line to be empty (separator)")
 	}
-	
+
 	if lines[2] != "SQL Query:" {
 		t.Errorf("expected third line to be 'SQL Query:', got '%s'", lines[2])
 	}
-	
+
 	if lines[3] != sqlQuery {
 		t.Errorf("expected fourth line to be SQL query, got '%s'", lines[3])
 	}
@@ -138,16 +138,16 @@ func TestSQLQueryInfoFormatting(t *testing.T) {
 // TestApprovalPromptFormat tests the prompt formatting
 func TestApprovalPromptFormat(t *testing.T) {
 	expectedPrompt := "Execute this query? (y/yes/n/no): "
-	
+
 	// This is the prompt that should be set in getUserApproval
 	if !strings.Contains(expectedPrompt, "Execute this query?") {
 		t.Error("expected prompt to ask about execution")
 	}
-	
+
 	if !strings.Contains(expectedPrompt, "(y/yes/n/no)") {
 		t.Error("expected prompt to show valid options")
 	}
-	
+
 	if !strings.HasSuffix(expectedPrompt, ": ") {
 		t.Error("expected prompt to end with ': ' for user input")
 	}
@@ -166,12 +166,12 @@ func TestConversationClearWorkflow(t *testing.T) {
 	}
 
 	// This simulates the /clear command logic
+	// When agent is not ready, there's nothing to clear
 	if session.agentReady {
-		// Would call s.agent.ClearConversation()
-		// Would print "🧹 Conversation history cleared"
-	} else {
-		// Would print "ℹ️  No conversation to clear"
+		// Would call s.agent.ClearConversation() in real implementation
+		t.Log("Would clear conversation history")
 	}
+	// Note: when agent is not ready, no action needed
 
 	// Test when agent is ready (simulated)
 	session.agentReady = true

@@ -501,7 +501,7 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 		rowCopy := make([]interface{}, len(values))
 		copy(rowCopy, values)
 		allRows = append(allRows, rowCopy)
-		
+
 		rowCount++
 
 		// Limit to prevent overwhelming memory usage
@@ -548,7 +548,6 @@ func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery strin
 		}
 	}
 
-
 	if err := rows.Err(); err != nil {
 		return "", fmt.Errorf("%s", formatDatabaseError(err))
 	}
@@ -588,10 +587,10 @@ func formatQueryResult(mode string, rowCount int, executionTime time.Duration, d
 	case "share-results":
 		var result strings.Builder
 		result.WriteString(fmt.Sprintf("Query executed successfully, %d rows returned in %v\n\n", rowCount, executionTime))
-		
+
 		result.WriteString("Query Results:\n")
 		result.WriteString(strings.Repeat("=", 50) + "\n")
-		
+
 		// Add column headers
 		result.WriteString("| ")
 		for _, name := range data.ColumnNames {
@@ -599,7 +598,7 @@ func formatQueryResult(mode string, rowCount int, executionTime time.Duration, d
 		}
 		result.WriteString("\n")
 		result.WriteString(strings.Repeat("-", len(data.ColumnNames)*18) + "\n")
-		
+
 		// Add data rows
 		for _, row := range data.Rows {
 			result.WriteString("| ")
@@ -608,21 +607,20 @@ func formatQueryResult(mode string, rowCount int, executionTime time.Duration, d
 			}
 			result.WriteString("\n")
 		}
-		
+
 		if data.Truncated {
 			result.WriteString("... (showing first 50 rows for analysis)\n")
 		}
-		
+
 		return result.String()
-		
+
 	case "schema-only":
 		return "Query executed successfully"
-		
+
 	default: // "default" mode
 		return fmt.Sprintf("Query executed successfully, %d rows returned in %v", rowCount, executionTime)
 	}
 }
-
 
 // validateSafeQuery ensures the query is safe to execute (SELECT/WITH only)
 func validateSafeQuery(sqlQuery string) error {

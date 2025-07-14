@@ -155,18 +155,18 @@ func TestConnectionString_Generation(t *testing.T) {
 
 func TestConnection_EnsureConnection(t *testing.T) {
 	tests := []struct {
-		name           string
-		initialPool    bool
+		name            string
+		initialPool     bool
 		shouldReconnect bool
 	}{
 		{
-			name:           "nil connection should trigger reconnect",
-			initialPool:    false,
+			name:            "nil connection should trigger reconnect",
+			initialPool:     false,
 			shouldReconnect: true,
 		},
 		{
-			name:           "existing connection should be checked",
-			initialPool:    true,
+			name:            "existing connection should be checked",
+			initialPool:     true,
 			shouldReconnect: false,
 		},
 	}
@@ -186,6 +186,7 @@ func TestConnection_EnsureConnection(t *testing.T) {
 			if tt.initialPool {
 				// We can't create a real connection in unit tests without a DB
 				// so we just test the logic path
+				t.Log("Testing with initial pool connection scenario")
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -199,7 +200,6 @@ func TestConnection_EnsureConnection(t *testing.T) {
 		})
 	}
 }
-
 
 func TestDatabaseInfo(t *testing.T) {
 	info := &DatabaseInfo{
@@ -230,11 +230,11 @@ func TestDatabaseInfo(t *testing.T) {
 func TestSingleConnectionApproach(t *testing.T) {
 	// Test that single connection approach is simpler than pool
 	// This is a documentation test verifying our design decision
-	
+
 	// Single connection benefits:
 	benefits := []string{
 		"No pool configuration needed",
-		"Simpler connection state management", 
+		"Simpler connection state management",
 		"Better fit for CLI tool",
 		"Faster startup",
 		"Lower memory usage",
@@ -251,7 +251,7 @@ func TestReconnectWithRetryLogic(t *testing.T) {
 			Host:     "nonexistent",
 			Port:     9999,
 			Database: "test",
-			User:     "test", 
+			User:     "test",
 			Password: "test",
 		},
 	}
@@ -276,7 +276,7 @@ func TestConnectionRecoveryScenarios(t *testing.T) {
 			description: "Connection recovery when connection is nil (startup scenario)",
 		},
 		{
-			name:        "lost_connection_ping_fails", 
+			name:        "lost_connection_ping_fails",
 			description: "Connection recovery when ping fails (connection lost scenario)",
 		},
 		{

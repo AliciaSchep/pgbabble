@@ -37,9 +37,10 @@ deps:
 	go mod download
 	go mod tidy
 
-# Format code
+# Format code and tidy modules
 fmt:
 	go fmt ./...
+	go mod tidy
 
 # Run linter (requires golangci-lint)
 lint:

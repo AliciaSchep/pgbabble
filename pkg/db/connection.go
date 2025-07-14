@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"pgbabble/pkg/config"
+	"github.com/AliciaSchep/pgbabble/pkg/config"
 )
 
 // Connection wraps a PostgreSQL connection

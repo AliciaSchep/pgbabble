@@ -1,4 +1,4 @@
-module pgbabble
+module github.com/AliciaSchep/pgbabble
 
 go 1.24.3
 

@@ -8,9 +8,9 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"pgbabble/pkg/config"
-	"pgbabble/pkg/db"
-	"pgbabble/pkg/chat"
+	"github.com/AliciaSchep/pgbabble/pkg/config"
+	"github.com/AliciaSchep/pgbabble/pkg/db"
+	"github.com/AliciaSchep/pgbabble/pkg/chat"
 )
 
 var (

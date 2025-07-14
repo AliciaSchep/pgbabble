@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"pgbabble/pkg/db"
-	"pgbabble/pkg/display"
+	"github.com/AliciaSchep/pgbabble/pkg/db"
+	"github.com/AliciaSchep/pgbabble/pkg/display"
 )
 
 // QueryTimeout is the default timeout for SQL query execution

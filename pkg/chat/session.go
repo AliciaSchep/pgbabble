@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/chzyer/readline"
-	"pgbabble/pkg/agent"
-	"pgbabble/pkg/db"
-	"pgbabble/pkg/display"
+	"github.com/AliciaSchep/pgbabble/pkg/agent"
+	"github.com/AliciaSchep/pgbabble/pkg/db"
+	"github.com/AliciaSchep/pgbabble/pkg/display"
 )
 
 // Session represents an interactive chat session

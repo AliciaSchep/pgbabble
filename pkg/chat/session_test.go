@@ -3,7 +3,7 @@ package chat
 import (
 	"testing"
 
-	"pgbabble/pkg/db"
+	"github.com/AliciaSchep/pgbabble/pkg/db"
 )
 
 func TestNewSession(t *testing.T) {

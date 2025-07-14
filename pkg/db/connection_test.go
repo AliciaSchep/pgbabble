@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"pgbabble/pkg/config"
+	"github.com/AliciaSchep/pgbabble/pkg/config"
 )
 
 func TestDBConfig_Validate(t *testing.T) {

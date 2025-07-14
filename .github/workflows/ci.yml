@@ -24,7 +24,7 @@ jobs:
     - name: Check formatting
       run: |
         make fmt
-        if [ -n "$(git diff --exit-code)" ]; then
+        if ! git diff --exit-code; then
           echo "Code is not formatted. Run 'make fmt' to fix."
           exit 1
         fi

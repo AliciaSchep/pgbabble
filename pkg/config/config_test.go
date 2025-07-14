@@ -100,19 +100,19 @@ func TestNewDBConfigFromURI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config, err := NewDBConfigFromURI(tt.uri)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
-			
+
 			if config.Host != tt.expected.Host {
 				t.Errorf("Host: expected %s, got %s", tt.expected.Host, config.Host)
 			}
@@ -261,7 +261,7 @@ func TestNewDBConfigFromFlags(t *testing.T) {
 			os.Unsetenv("PGDATABASE")
 			os.Unsetenv("PGSSLMODE")
 			os.Unsetenv("USER")
-			
+
 			// Set test environment variables
 			for key, value := range tt.envVars {
 				os.Setenv(key, value)
@@ -387,7 +387,7 @@ func TestValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.config.Validate()
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")

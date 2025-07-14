@@ -39,12 +39,12 @@ type Message struct {
 type ContentBlock struct {
 	Type string `json:"type"` // "text", "tool_use", "tool_result"
 	Text string `json:"text,omitempty"`
-	
+
 	// For tool_use
-	ID       string                 `json:"id,omitempty"`
-	Name     string                 `json:"name,omitempty"`
-	Input    map[string]interface{} `json:"input,omitempty"`
-	
+	ID    string                 `json:"id,omitempty"`
+	Name  string                 `json:"name,omitempty"`
+	Input map[string]interface{} `json:"input,omitempty"`
+
 	// For tool_result
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	Content   string `json:"content,omitempty"`
@@ -80,7 +80,7 @@ func (ch *ConversationHistory) AddToolResult(toolUseID string, result *ToolResul
 		if lastMsg.Role == "assistant" {
 			// Convert content to []ContentBlock if it's not already
 			var blocks []ContentBlock
-			
+
 			switch content := lastMsg.Content.(type) {
 			case string:
 				blocks = []ContentBlock{{Type: "text", Text: content}}
@@ -92,7 +92,7 @@ func (ch *ConversationHistory) AddToolResult(toolUseID string, result *ToolResul
 					json.Unmarshal(jsonBytes, &blocks)
 				}
 			}
-			
+
 			// Add tool result
 			blocks = append(blocks, ContentBlock{
 				Type:      "tool_result",
@@ -100,7 +100,7 @@ func (ch *ConversationHistory) AddToolResult(toolUseID string, result *ToolResul
 				Content:   result.Content,
 				IsError:   result.IsError,
 			})
-			
+
 			lastMsg.Content = blocks
 		}
 	}

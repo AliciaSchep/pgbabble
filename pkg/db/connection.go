@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/AliciaSchep/pgbabble/pkg/config"
+	"github.com/jackc/pgx/v5"
 )
 
 // Connection wraps a PostgreSQL connection
@@ -46,7 +46,6 @@ func (c *Connection) Close() {
 	}
 }
 
-
 // Query executes a query and returns the rows
 func (c *Connection) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
 	return c.conn.Query(ctx, sql, args...)
@@ -64,7 +63,7 @@ func (c *Connection) EnsureConnection(ctx context.Context) {
 		c.reconnectWithRetry(ctx)
 		return
 	}
-	
+
 	// Check if connection is alive
 	err := c.conn.Ping(ctx)
 	for err != nil {

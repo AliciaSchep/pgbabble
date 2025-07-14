@@ -6,9 +6,9 @@ import (
 
 func TestValidateSafeQuery(t *testing.T) {
 	tests := []struct {
-		name        string
-		query       string
-		expectError bool
+		name          string
+		query         string
+		expectError   bool
 		errorContains string
 	}{
 		// Valid queries
@@ -159,9 +159,9 @@ func TestValidateSafeQuery(t *testing.T) {
 			errorContains: "only SELECT and WITH queries are allowed",
 		},
 		{
-			name:          "hidden insert in comment",
-			query:         "SELECT * FROM users /* INSERT INTO users VALUES (1, 'hack') */",
-			expectError:   false, // Should be safe since it's in a comment
+			name:        "hidden insert in comment",
+			query:       "SELECT * FROM users /* INSERT INTO users VALUES (1, 'hack') */",
+			expectError: false, // Should be safe since it's in a comment
 		},
 		{
 			name:          "unclosed block comment",
@@ -188,7 +188,7 @@ func TestValidateSafeQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateSafeQuery(tt.query)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error for query: %s", tt.query)
@@ -247,7 +247,7 @@ func TestValidateQueryContent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateQueryContent(tt.query)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error for query: %s", tt.query)
@@ -267,13 +267,13 @@ func TestValidateQueryContent(t *testing.T) {
 
 // Helper function for case-insensitive string contains check
 func containsIgnoreCase(str, substr string) bool {
-	return len(str) >= len(substr) && 
-		   len(substr) > 0 && 
-		   (str == substr || 
-		    (len(str) > len(substr) && 
-		     (str[:len(substr)] == substr || 
-		      str[len(str)-len(substr):] == substr || 
-		      stringContains(str, substr))))
+	return len(str) >= len(substr) &&
+		len(substr) > 0 &&
+		(str == substr ||
+			(len(str) > len(substr) &&
+				(str[:len(substr)] == substr ||
+					str[len(str)-len(substr):] == substr ||
+					stringContains(str, substr))))
 }
 
 func stringContains(str, substr string) bool {

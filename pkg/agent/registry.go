@@ -30,10 +30,10 @@ func (tr *ToolRegistry) RegisterTool(tool *Tool) error {
 	if tool.Handler == nil {
 		return fmt.Errorf("tool handler cannot be nil")
 	}
-	
+
 	tr.mutex.Lock()
 	defer tr.mutex.Unlock()
-	
+
 	tr.tools[tool.Name] = tool
 	return nil
 }
@@ -42,7 +42,7 @@ func (tr *ToolRegistry) RegisterTool(tool *Tool) error {
 func (tr *ToolRegistry) GetTool(name string) (*Tool, bool) {
 	tr.mutex.RLock()
 	defer tr.mutex.RUnlock()
-	
+
 	tool, exists := tr.tools[name]
 	return tool, exists
 }
@@ -51,7 +51,7 @@ func (tr *ToolRegistry) GetTool(name string) (*Tool, bool) {
 func (tr *ToolRegistry) GetAllTools() []*Tool {
 	tr.mutex.RLock()
 	defer tr.mutex.RUnlock()
-	
+
 	tools := make([]*Tool, 0, len(tr.tools))
 	for _, tool := range tr.tools {
 		tools = append(tools, tool)
@@ -63,7 +63,7 @@ func (tr *ToolRegistry) GetAllTools() []*Tool {
 func (tr *ToolRegistry) GetToolsForAnthropic() []map[string]interface{} {
 	tools := tr.GetAllTools()
 	anthropicTools := make([]map[string]interface{}, len(tools))
-	
+
 	for i, tool := range tools {
 		anthropicTools[i] = map[string]interface{}{
 			"name":         tool.Name,
@@ -71,7 +71,7 @@ func (tr *ToolRegistry) GetToolsForAnthropic() []map[string]interface{} {
 			"input_schema": tool.InputSchema,
 		}
 	}
-	
+
 	return anthropicTools
 }
 
@@ -84,7 +84,7 @@ func (tr *ToolRegistry) ExecuteTool(ctx context.Context, name string, input map[
 			IsError: true,
 		}, fmt.Errorf("tool '%s' not found", name)
 	}
-	
+
 	// Execute the tool
 	result, err := tool.Handler(ctx, input)
 	if err != nil {
@@ -93,7 +93,7 @@ func (tr *ToolRegistry) ExecuteTool(ctx context.Context, name string, input map[
 			IsError: true,
 		}, err
 	}
-	
+
 	return result, nil
 }
 
@@ -101,7 +101,7 @@ func (tr *ToolRegistry) ExecuteTool(ctx context.Context, name string, input map[
 func (tr *ToolRegistry) ListToolNames() []string {
 	tr.mutex.RLock()
 	defer tr.mutex.RUnlock()
-	
+
 	names := make([]string, 0, len(tr.tools))
 	for name := range tr.tools {
 		names = append(names, name)
@@ -113,7 +113,7 @@ func (tr *ToolRegistry) ListToolNames() []string {
 func (tr *ToolRegistry) RemoveTool(name string) bool {
 	tr.mutex.Lock()
 	defer tr.mutex.Unlock()
-	
+
 	if _, exists := tr.tools[name]; exists {
 		delete(tr.tools, name)
 		return true
@@ -125,6 +125,6 @@ func (tr *ToolRegistry) RemoveTool(name string) bool {
 func (tr *ToolRegistry) Clear() {
 	tr.mutex.Lock()
 	defer tr.mutex.Unlock()
-	
+
 	tr.tools = make(map[string]*Tool)
 }

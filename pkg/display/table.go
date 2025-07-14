@@ -15,7 +15,7 @@ type ColumnInfo struct {
 
 // TableFormatter handles intelligent table formatting with dynamic column widths
 type TableFormatter struct {
-	columns      []ColumnInfo
+	columns       []ColumnInfo
 	terminalWidth int
 	borderWidth   int // Space for borders and padding
 }

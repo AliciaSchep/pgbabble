@@ -28,7 +28,7 @@ func TestNewAgent(t *testing.T) {
 	// Test with empty API key but environment variable set
 	os.Setenv("ANTHROPIC_API_KEY", "env-api-key")
 	defer os.Unsetenv("ANTHROPIC_API_KEY")
-	
+
 	agent2, err := NewAgent("")
 	if err != nil {
 		t.Errorf("unexpected error creating agent with env var: %v", err)

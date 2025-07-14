@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.3'
+
+    - name: Download dependencies
+      run: make deps
+
+    - name: Run tests
+      run: make test
+
+    - name: Run linter
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.3'
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Run gosec Security Scanner
+      uses: securego/gosec@master
+      with:
+        args: './...'
+
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: ""
+          - goos: darwin
+            goarch: amd64
+            suffix: ""
+          - goos: darwin
+            goarch: arm64
+            suffix: ""
+          - goos: windows
+            goarch: amd64
+            suffix: ".exe"
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.3'
+
+    - name: Download dependencies
+      run: make deps
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        CGO_ENABLED=0 go build -ldflags="-w -s" -o pgbabble-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} ./cmd/pgbabble/main.go
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: pgbabble-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: pgbabble-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build-and-release
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./artifacts/*/pgbabble-*
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

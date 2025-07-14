@@ -20,7 +20,7 @@ func TestFormatDatabaseError(t *testing.T) {
 			expected: "Table or view not found",
 		},
 		{
-			name:     "column not found error", 
+			name:     "column not found error",
 			input:    fmt.Errorf(`pq: column "nonexistent_column" does not exist`),
 			expected: "Column not found",
 		},
@@ -247,7 +247,7 @@ func TestErrorMessagePatterns(t *testing.T) {
 			shouldMatch: "relation",
 		},
 		{
-			name:        "column does not exist pattern", 
+			name:        "column does not exist pattern",
 			errorStr:    `column "test_column" does not exist`,
 			shouldMatch: "column",
 		},

@@ -8,12 +8,12 @@ import (
 
 // TableInfo represents information about a database table
 type TableInfo struct {
-	Schema       string
-	Name         string
-	Type         string // table, view, materialized view
-	Description  string
-	EstimatedRows int64  // Estimated row count from pg_class.reltuples
-	Columns      []ColumnInfo
+	Schema        string
+	Name          string
+	Type          string // table, view, materialized view
+	Description   string
+	EstimatedRows int64 // Estimated row count from pg_class.reltuples
+	Columns       []ColumnInfo
 }
 
 // ColumnInfo represents information about a table column
@@ -28,13 +28,13 @@ type ColumnInfo struct {
 
 // ForeignKeyInfo represents foreign key relationships
 type ForeignKeyInfo struct {
-	TableSchema           string
-	TableName             string
-	ColumnName            string
-	ForeignTableSchema    string
-	ForeignTableName      string
-	ForeignColumnName     string
-	ConstraintName        string
+	TableSchema        string
+	TableName          string
+	ColumnName         string
+	ForeignTableSchema string
+	ForeignTableName   string
+	ForeignColumnName  string
+	ConstraintName     string
 }
 
 // IndexInfo represents database index information

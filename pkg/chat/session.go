@@ -379,7 +379,6 @@ func (s *Session) describeTable(ctx context.Context, tableName string) error {
 	return nil
 }
 
-
 // browseLastResults opens the last query results in less for browsing
 func (s *Session) browseLastResults(ctx context.Context) error {
 	if agent.LastQueryResult == nil {

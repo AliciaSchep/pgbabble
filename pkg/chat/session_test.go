@@ -21,4 +21,3 @@ func TestNewSession(t *testing.T) {
 		t.Errorf("expected mode %s, got %s", mode, session.mode)
 	}
 }
-

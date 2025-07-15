@@ -583,6 +583,7 @@ type QueryResultData struct {
 
 // formatQueryResult formats the query execution result based on the mode
 func formatQueryResult(mode string, rowCount int, executionTime time.Duration, data *QueryResultData) string {
+	nextStep := "Next step: Summarise these results for the user and ask or propose next steps. Do not run execute_sql tool immediately without asking the user what they want to do next."
 	switch mode {
 	case "share-results":
 		var result strings.Builder
@@ -612,13 +613,15 @@ func formatQueryResult(mode string, rowCount int, executionTime time.Duration, d
 			result.WriteString("... (showing first 50 rows for analysis)\n")
 		}
 
+		result.WriteString(nextStep)
+
 		return result.String()
 
 	case "schema-only":
-		return "Query executed successfully"
+		return fmt.Sprintf("Query executed successfully and results were displayed to the user. %s", nextStep)
 
 	default: // "default" mode
-		return fmt.Sprintf("Query executed successfully, %d rows returned in %v", rowCount, executionTime)
+		return fmt.Sprintf("Query executed successfully, %d rows returned in %v. Results were displayed to the user. %s", rowCount, executionTime, nextStep)
 	}
 }
 

@@ -15,6 +15,7 @@ type Agent struct {
 	client       *anthropic.Client
 	tools        []ToolDefinition
 	conversation []anthropic.MessageParam
+	mode         string
 }
 
 // ToolDefinition matches the ampcode.com pattern
@@ -26,7 +27,7 @@ type ToolDefinition struct {
 }
 
 // NewAgent creates a new agent following the ampcode.com pattern
-func NewAgent(apiKey string) (*Agent, error) {
+func NewAgent(apiKey string, mode string) (*Agent, error) {
 	if apiKey == "" {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
@@ -40,6 +41,7 @@ func NewAgent(apiKey string) (*Agent, error) {
 		client:       &client,
 		tools:        []ToolDefinition{},
 		conversation: []anthropic.MessageParam{},
+		mode:         mode,
 	}, nil
 }
 
@@ -53,12 +55,31 @@ func (a *Agent) ClearConversation() {
 	a.conversation = []anthropic.MessageParam{}
 }
 
-// SendMessage sends a message and handles tool calling (simplified from the ampcode.com pattern)
-func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, error) {
-	// Add user message to conversation history
-	a.conversation = append(a.conversation, anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)))
+// generateSystemMessage creates a system message that includes mode-specific information
+func (a *Agent) generateSystemMessage() string {
+	var modeDescription string
+	switch a.mode {
+	case "default":
+		modeDescription = `IMPORTANT -- Running queries will display results to the user, but not share them with you.
+DO NOT MAKE UP results when talking with user. You can see schema information, table sizes, and query execution metadata, but NOT actual query result data. You can examine EXPLAIN query plans to help with optimization.
+If the user asks for a result from a prior query, you should clarify that you cannot see the results, but that they can use the "/browse" command to view the results from last query
+or you can run the same or a modified query again for them to see the results.
+`
+	case "schema-only":
+		modeDescription = `IMPORTANT -- Running queries will display results to the user, but not share them with you.
+DO NOT MAKE UP results when talking with user. You can see schema information but NOT actual query result data, table sizes, or explain execution plans.
+If the user asks for a result from a prior query, you should clarify that you cannot see the results, but that they can use the "/browse" command to view the results from last query
+or you can run the same or a modified query again for them to see the results.
+`
+	default:
+		modeDescription = ""
+	}
 
-	systemMessage := `You are a PostgreSQL expert assistant that helps users write SQL queries.
+	return fmt.Sprintf(`You are a PostgreSQL expert assistant that helps users write SQL queries.
+
+%s
+
+The user can change this mode by restarting the session with a different --mode flag, but cannot change it during this session.
 
 CRITICAL: You MUST use the available tools to interact with the database. Never just describe SQL - always use tools.
 
@@ -71,15 +92,26 @@ Available tools:
 - explain_query: Analyze query execution plans for performance optimization
 
 MANDATORY Workflow:
-1. ALWAYS start by calling list_tables or describe_table to understand the database
-2. Generate SQL based on actual schema information
-3. ALWAYS call execute_sql tool to run queries - never just show SQL text
-4. Let the tool handle user approval and execution
-5. For performance questions or complex queries, use explain_query to analyze execution plans
-6. After any tool is called successfully, ask the user if they would like to run another query
+1. Unless the user has provided specific table names, ALWAYS start by calling list_tables to understand the database or search_columns to understand what tables to focus on.
+2. Use describe_table and get_relationships to better understand tables and relationships
+3. Generate SQL based on actual schema information
+4. ALWAYS call execute_sql tool to run queries - never just show SQL text
+5. Let the tool handle user approval and execution
+6. For performance questions or complex queries, use explain_query to analyze execution plans
+7. If a SQL query or explain execution is rejected by the user, always ask for clarification before proposing another sql
+query to execute
+8. Don't run multiple queries in a row without checking in with the user in between each query.
 
 Use a conversational tone, do not mention specific tool names.
-Do NOT provide raw SQL in text. Use execute_sql tool for all query execution.`
+Do NOT provide raw SQL in text. Use execute_sql tool for all query execution.`, modeDescription)
+}
+
+// SendMessage sends a message and handles tool calling (simplified from the ampcode.com pattern)
+func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, error) {
+	// Add user message to conversation history
+	a.conversation = append(a.conversation, anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)))
+
+	systemMessage := a.generateSystemMessage()
 
 	for {
 		message, err := a.runInference(ctx, a.conversation, systemMessage)

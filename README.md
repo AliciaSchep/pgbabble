@@ -66,7 +66,7 @@ pgbabble --mode schema-only "postgresql://user:pass@localhost/mydb"
 # Default balanced mode
 pgbabble --mode default "postgresql://user:pass@localhost/mydb"
 
-# Full data sharing mode  
+# Full data sharing mode
 pgbabble --mode share-results "postgresql://user:pass@localhost/mydb"
 ```
 
@@ -123,10 +123,10 @@ pgbabble> Can you provide a summary of all colors and how many parts they are us
 ```
 pgbabble> /help              # Show all available commands
 pgbabble> /browse            # Browse last query results in full
-pgbabble> /schema            # Database overview  
+pgbabble> /schema            # Database overview
 pgbabble> /tables            # List all tables
 pgbabble> /describe <table>  # Detailed table structure
-pgbabble> /mode [mode]       # Show or set privacy mode
+pgbabble> /mode              # Show privacy mode
 ```
 
 ### Example Workflow
@@ -136,16 +136,12 @@ pgbabble> /mode [mode]       # Show or set privacy mode
 4. Use standard `less` navigation (space, arrows, search with `/pattern`)
 5. Press 'q' to return to the pgbabble prompt
 
-The enhanced display works seamlessly with all privacy modes and maintains backward compatibility.
-
 ## Development
-
-See [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) for detailed development roadmap.
 
 ```bash
 # Run tests
-go test ./...
+make test
 
 # Build
-go build -o pgbabble cmd/pgbabble/main.go
+make build
 ```

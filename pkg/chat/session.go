@@ -115,12 +115,20 @@ func (s *Session) handleCommand(ctx context.Context, cmd string) error {
 		return s.describeTable(ctx, parts[1])
 
 	case "/mode", "/m":
-		if len(parts) < 2 {
-			fmt.Printf("Current mode: %s\n", s.mode)
-			fmt.Println("Available modes: default, schema-only, share-results")
-			return nil
+		fmt.Printf("Current mode: %s\n", s.mode)
+		switch s.mode {
+		case "default":
+			fmt.Println("Default mode: EXPLAIN sharing allowed, table size info shared, query row counts shared, but no actual query result data")
+		case "schema-only":
+			fmt.Println("Schema-only mode: No EXPLAIN sharing, no table size info, no query result data - maximum privacy")
+		case "share-results":
+			fmt.Println("Share-results mode: Full data sharing including EXPLAIN results, table sizes, and actual query result data")
 		}
-		return s.setMode(parts[1])
+		fmt.Println()
+		fmt.Println("💡 To change modes, exit pgbabble and restart with the --mode flag:")
+		fmt.Println("   pgbabble --mode schema-only <connection>")
+		fmt.Println("   pgbabble --mode share-results <connection>")
+		return nil
 
 	case "/clear", "/c":
 		if s.agentReady {
@@ -176,7 +184,7 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 
 // initializeAgent sets up the LLM agent with schema tools
 func (s *Session) initializeAgent() {
-	agentClient, err := agent.NewAgent("")
+	agentClient, err := agent.NewAgent("", s.mode)
 	if err != nil {
 		fmt.Printf("ℹ️  LLM features not available: %v\n", err)
 		fmt.Println("   Set ANTHROPIC_API_KEY environment variable to enable AI features")
@@ -238,7 +246,7 @@ func (s *Session) showHelp() {
 	fmt.Println("  /schema, /s        Show database schema overview")
 	fmt.Println("  /tables, /t        List all tables and views")
 	fmt.Println("  /describe <table>  Describe a specific table")
-	fmt.Println("  /mode [mode]       Show or set data exposure mode")
+	fmt.Println("  /mode, /m          Show current data exposure mode")
 	fmt.Println("  /clear, /c         Clear conversation history")
 	fmt.Println("  /browse, /b        Browse last query results in less pager")
 	fmt.Println()
@@ -366,34 +374,6 @@ func (s *Session) describeTable(ctx context.Context, tableName string) error {
 			fmt.Printf("%s -> %s.%s.%s\n",
 				fk.ColumnName, fk.ForeignTableSchema, fk.ForeignTableName, fk.ForeignColumnName)
 		}
-	}
-
-	return nil
-}
-
-// setMode changes the data exposure mode
-func (s *Session) setMode(newMode string) error {
-	validModes := map[string]bool{
-		"default":       true,
-		"schema-only":   true,
-		"share-results": true,
-	}
-
-	if !validModes[newMode] {
-		return fmt.Errorf("invalid mode: %s (valid modes: default, schema-only, share-results)", newMode)
-	}
-
-	oldMode := s.mode
-	s.mode = newMode
-	fmt.Printf("Mode changed from '%s' to '%s'\n", oldMode, newMode)
-
-	switch newMode {
-	case "default":
-		fmt.Println("Default mode: EXPLAIN sharing allowed, table size info shared, query row counts shared, but no actual query result data")
-	case "schema-only":
-		fmt.Println("Schema-only mode: No EXPLAIN sharing, no table size info, no query result data - maximum privacy")
-	case "share-results":
-		fmt.Println("Share-results mode: Full data sharing including EXPLAIN results, table sizes, and actual query result data")
 	}
 
 	return nil

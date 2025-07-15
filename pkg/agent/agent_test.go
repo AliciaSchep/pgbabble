@@ -11,7 +11,7 @@ import (
 
 func TestNewAgent(t *testing.T) {
 	// Test with valid API key
-	agent, err := NewAgent("test-api-key")
+	agent, err := NewAgent("test-api-key", "default")
 	if err != nil {
 		t.Errorf("unexpected error creating agent: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestNewAgent(t *testing.T) {
 		}
 	}()
 
-	agent2, err := NewAgent("")
+	agent2, err := NewAgent("", "default")
 	if err != nil {
 		t.Errorf("unexpected error creating agent with env var: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestNewAgent(t *testing.T) {
 	if err := os.Unsetenv("ANTHROPIC_API_KEY"); err != nil {
 		t.Logf("failed to unset environment variable: %v", err)
 	}
-	agent3, err := NewAgent("")
+	agent3, err := NewAgent("", "default")
 	if err == nil {
 		t.Error("expected error when no API key provided")
 	}

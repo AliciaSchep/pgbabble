@@ -17,6 +17,10 @@ type Connection struct {
 
 // Connect establishes a connection to PostgreSQL using the provided config
 func Connect(ctx context.Context, cfg *config.DBConfig) (*Connection, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("database configuration cannot be nil")
+	}
+	
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid database configuration: %w", err)
 	}

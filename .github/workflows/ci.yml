@@ -10,6 +10,21 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
     - uses: actions/checkout@v4
 
@@ -29,11 +44,14 @@ jobs:
           exit 1
         fi
 
-    - name: Run tests
-      run: make test
-
-    - name: Run tests with coverage
-      run: make test-coverage
+    - name: Run integration tests with database
+      env:
+        PGBABBLE_TEST_HOST: localhost
+        PGBABBLE_TEST_PORT: 5432
+        PGBABBLE_TEST_USER: testuser
+        PGBABBLE_TEST_PASSWORD: testpass
+        PGBABBLE_TEST_DATABASE: testdb
+      run: go test ./... -v -cover
 
     - name: Run linter
       uses: golangci/golangci-lint-action@v6

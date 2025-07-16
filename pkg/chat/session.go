@@ -12,9 +12,16 @@ import (
 	"github.com/chzyer/readline"
 )
 
+// DatabaseConnection interface defines the database operations needed by the session
+type DatabaseConnection interface {
+	ListTables(ctx context.Context) ([]db.TableInfo, error)
+	DescribeTable(ctx context.Context, schema, tableName string) (*db.TableInfo, error)
+	GetForeignKeys(ctx context.Context, schema, tableName string) ([]db.ForeignKeyInfo, error)
+}
+
 // Session represents an interactive chat session
 type Session struct {
-	conn       *db.Connection
+	conn       DatabaseConnection
 	mode       string
 	rl         *readline.Instance
 	agent      *agent.Agent
@@ -22,7 +29,7 @@ type Session struct {
 }
 
 // NewSession creates a new chat session
-func NewSession(conn *db.Connection, mode string) *Session {
+func NewSession(conn DatabaseConnection, mode string) *Session {
 	return &Session{
 		conn:       conn,
 		mode:       mode,
@@ -192,18 +199,22 @@ func (s *Session) initializeAgent() {
 		return
 	}
 
-	// Add schema inspection tools
-	schemaTools := agent.CreateSchemaTools(s.conn, s.mode)
-	for _, tool := range schemaTools {
-		toolDef := agent.ConvertToolToDefinition(tool)
-		agentClient.AddTool(toolDef)
-	}
+	// Type assert to get concrete connection for agent tools
+	// TODO: Refactor agent tools to use interface
+	if dbConn, ok := s.conn.(*db.Connection); ok {
+		// Add schema inspection tools
+		schemaTools := agent.CreateSchemaTools(dbConn, s.mode)
+		for _, tool := range schemaTools {
+			toolDef := agent.ConvertToolToDefinition(tool)
+			agentClient.AddTool(toolDef)
+		}
 
-	// Add SQL execution tools with user approval callback
-	executionTools := agent.CreateExecutionTools(s.conn, s.getUserApproval, s.mode)
-	for _, tool := range executionTools {
-		toolDef := agent.ConvertToolToDefinition(tool)
-		agentClient.AddTool(toolDef)
+		// Add SQL execution tools with user approval callback
+		executionTools := agent.CreateExecutionTools(dbConn, s.getUserApproval, s.mode)
+		for _, tool := range executionTools {
+			toolDef := agent.ConvertToolToDefinition(tool)
+			agentClient.AddTool(toolDef)
+		}
 	}
 
 	s.agent = agentClient

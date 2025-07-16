@@ -9,14 +9,7 @@ import (
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 )
 
-// DBInterface defines the database operations needed by the session
-type DBInterface interface {
-	ListTables(ctx context.Context) ([]db.TableInfo, error)
-	DescribeTable(ctx context.Context, schema, tableName string) (*db.TableInfo, error)
-	GetForeignKeys(ctx context.Context, schema, tableName string) ([]db.ForeignKeyInfo, error)
-}
-
-// MockDBConnection implements DBInterface for testing
+// MockDBConnection implements DatabaseConnection for testing
 type MockDBConnection struct {
 	tables       []db.TableInfo
 	tableDetails map[string]*db.TableInfo
@@ -103,7 +96,7 @@ func (m *MockDBConnection) GetForeignKeys(ctx context.Context, schema, tableName
 }
 
 // Helper functions to test database functions with mock
-func testShowSchemaWithDB(session *Session, mockDB DBInterface, ctx context.Context) error {
+func testShowSchemaWithDB(session *Session, mockDB DatabaseConnection, ctx context.Context) error {
 	// Temporarily replace the session's database methods for testing
 	// We'll call the functions directly with mock data
 	tables, err := mockDB.ListTables(ctx)
@@ -137,7 +130,7 @@ func testShowSchemaWithDB(session *Session, mockDB DBInterface, ctx context.Cont
 	return nil
 }
 
-func testListTablesWithDB(session *Session, mockDB DBInterface, ctx context.Context) error {
+func testListTablesWithDB(session *Session, mockDB DatabaseConnection, ctx context.Context) error {
 	tables, err := mockDB.ListTables(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list tables: %w", err)
@@ -158,7 +151,7 @@ func testListTablesWithDB(session *Session, mockDB DBInterface, ctx context.Cont
 	return nil
 }
 
-func testDescribeTableWithDB(session *Session, mockDB DBInterface, ctx context.Context, tableName string) error {
+func testDescribeTableWithDB(session *Session, mockDB DatabaseConnection, ctx context.Context, tableName string) error {
 	// Parse schema.table if provided (same logic as describeTable)
 	schema := "public"
 	if strings.Contains(tableName, ".") {
@@ -623,147 +616,7 @@ func TestSession_TableNameParsing(t *testing.T) {
 	}
 }
 
-// Database Presentation Function Tests
-
-func TestSession_ShowSchema_Logic(t *testing.T) {
-	mockDB := NewMockDBConnection()
-	session := NewSession(nil, "default")
-	ctx := context.Background()
-
-	t.Run("successful_schema_display", func(t *testing.T) {
-		err := testShowSchemaWithDB(session, mockDB, ctx)
-		if err != nil {
-			t.Fatalf("showSchema logic failed: %v", err)
-		}
-		// Test passes if no error - output formatting logic is tested
-	})
-
-	t.Run("empty_database", func(t *testing.T) {
-		emptyMockDB := &MockDBConnection{tables: []db.TableInfo{}}
-		
-		err := testShowSchemaWithDB(session, emptyMockDB, ctx)
-		if err != nil {
-			t.Fatalf("showSchema logic with empty DB failed: %v", err)
-		}
-		// Should handle empty database gracefully
-	})
-
-	t.Run("database_error", func(t *testing.T) {
-		errorMockDB := NewMockDBConnection()
-		errorMockDB.shouldFail = "ListTables"
-		
-		err := testShowSchemaWithDB(session, errorMockDB, ctx)
-		if err == nil {
-			t.Error("Expected error when ListTables fails")
-		}
-		if !strings.Contains(err.Error(), "failed to get schema") {
-			t.Errorf("Expected 'failed to get schema' error, got: %v", err)
-		}
-	})
-}
-
-func TestSession_ListTables_Logic(t *testing.T) {
-	mockDB := NewMockDBConnection()
-	session := NewSession(nil, "default")
-	ctx := context.Background()
-
-	t.Run("successful_table_listing", func(t *testing.T) {
-		err := testListTablesWithDB(session, mockDB, ctx)
-		if err != nil {
-			t.Fatalf("listTables logic failed: %v", err)
-		}
-		// Test passes if no error - output formatting logic is tested
-	})
-
-	t.Run("empty_database", func(t *testing.T) {
-		emptyMockDB := &MockDBConnection{tables: []db.TableInfo{}}
-		
-		err := testListTablesWithDB(session, emptyMockDB, ctx)
-		if err != nil {
-			t.Fatalf("listTables logic with empty DB failed: %v", err)
-		}
-		// Should handle empty database gracefully
-	})
-
-	t.Run("database_error", func(t *testing.T) {
-		errorMockDB := NewMockDBConnection()
-		errorMockDB.shouldFail = "ListTables"
-		
-		err := testListTablesWithDB(session, errorMockDB, ctx)
-		if err == nil {
-			t.Error("Expected error when ListTables fails")
-		}
-		if !strings.Contains(err.Error(), "failed to list tables") {
-			t.Errorf("Expected 'failed to list tables' error, got: %v", err)
-		}
-	})
-}
-
-func TestSession_DescribeTable_Logic(t *testing.T) {
-	mockDB := NewMockDBConnection()
-	session := NewSession(nil, "default")
-	ctx := context.Background()
-
-	t.Run("successful_table_description", func(t *testing.T) {
-		err := testDescribeTableWithDB(session, mockDB, ctx, "users")
-		if err != nil {
-			t.Fatalf("describeTable logic failed: %v", err)
-		}
-		// Test passes if no error - output formatting logic is tested
-	})
-
-	t.Run("table_with_schema_prefix", func(t *testing.T) {
-		err := testDescribeTableWithDB(session, mockDB, ctx, "public.users")
-		if err != nil {
-			t.Fatalf("describeTable logic with schema prefix failed: %v", err)
-		}
-		// Should handle schema.table format
-	})
-
-	t.Run("table_with_foreign_keys", func(t *testing.T) {
-		err := testDescribeTableWithDB(session, mockDB, ctx, "orders")
-		if err != nil {
-			t.Fatalf("describeTable logic with foreign keys failed: %v", err)
-		}
-		// Should display foreign key information
-	})
-
-	t.Run("nonexistent_table", func(t *testing.T) {
-		err := testDescribeTableWithDB(session, mockDB, ctx, "nonexistent")
-		if err == nil {
-			t.Error("Expected error for nonexistent table")
-		}
-		if !strings.Contains(err.Error(), "failed to describe table") {
-			t.Errorf("Expected 'failed to describe table' error, got: %v", err)
-		}
-	})
-
-	t.Run("database_error_describe", func(t *testing.T) {
-		errorMockDB := NewMockDBConnection()
-		errorMockDB.shouldFail = "DescribeTable"
-		
-		err := testDescribeTableWithDB(session, errorMockDB, ctx, "users")
-		if err == nil {
-			t.Error("Expected error when DescribeTable fails")
-		}
-		if !strings.Contains(err.Error(), "failed to describe table") {
-			t.Errorf("Expected 'failed to describe table' error, got: %v", err)
-		}
-	})
-
-	t.Run("database_error_foreign_keys", func(t *testing.T) {
-		errorMockDB := NewMockDBConnection()
-		errorMockDB.shouldFail = "GetForeignKeys"
-		
-		err := testDescribeTableWithDB(session, errorMockDB, ctx, "users")
-		if err == nil {
-			t.Error("Expected error when GetForeignKeys fails")
-		}
-		if !strings.Contains(err.Error(), "failed to get foreign keys") {
-			t.Errorf("Expected 'failed to get foreign keys' error, got: %v", err)
-		}
-	})
-}
+// Old helper function tests removed - replaced with proper tests that call actual session methods
 
 // Direct method testing for coverage improvement
 
@@ -868,6 +721,147 @@ func TestSession_MoreCommandPaths(t *testing.T) {
 		err := session.handleCommand(ctx, "")
 		if err != nil {
 			t.Errorf("Expected no error for empty command, got: %v", err)
+		}
+	})
+}
+
+func TestSession_DescribeTable_WithMockDB(t *testing.T) {
+	mockDB := NewMockDBConnection()
+	session := NewSession(mockDB, "default")
+	ctx := context.Background()
+
+	t.Run("describe_existing_table", func(t *testing.T) {
+		// Capture stdout to verify output
+		// For now, just test that it doesn't panic or error
+		err := session.describeTable(ctx, "users")
+		if err != nil {
+			t.Fatalf("describeTable failed: %v", err)
+		}
+	})
+
+	t.Run("describe_table_with_schema", func(t *testing.T) {
+		err := session.describeTable(ctx, "public.users")
+		if err != nil {
+			t.Fatalf("describeTable with schema failed: %v", err)
+		}
+	})
+
+	t.Run("describe_nonexistent_table", func(t *testing.T) {
+		err := session.describeTable(ctx, "nonexistent")
+		if err == nil {
+			t.Error("Expected error for nonexistent table")
+		}
+		if !strings.Contains(err.Error(), "failed to describe table") {
+			t.Errorf("Expected 'failed to describe table' error, got: %v", err)
+		}
+	})
+
+	t.Run("describe_table_with_foreign_keys", func(t *testing.T) {
+		err := session.describeTable(ctx, "orders")
+		if err != nil {
+			t.Fatalf("describeTable with foreign keys failed: %v", err)
+		}
+	})
+
+	t.Run("mock_database_error", func(t *testing.T) {
+		errorMockDB := NewMockDBConnection()
+		errorMockDB.shouldFail = "DescribeTable"
+		errorSession := NewSession(errorMockDB, "default")
+		
+		err := errorSession.describeTable(ctx, "users")
+		if err == nil {
+			t.Error("Expected error when DescribeTable fails")
+		}
+		if !strings.Contains(err.Error(), "failed to describe table") {
+			t.Errorf("Expected 'failed to describe table' error, got: %v", err)
+		}
+	})
+
+	t.Run("mock_foreign_keys_error", func(t *testing.T) {
+		errorMockDB := NewMockDBConnection()
+		errorMockDB.shouldFail = "GetForeignKeys"
+		errorSession := NewSession(errorMockDB, "default")
+		
+		err := errorSession.describeTable(ctx, "users")
+		if err == nil {
+			t.Error("Expected error when GetForeignKeys fails")
+		}
+		if !strings.Contains(err.Error(), "failed to get foreign keys") {
+			t.Errorf("Expected 'failed to get foreign keys' error, got: %v", err)
+		}
+	})
+}
+
+func TestSession_ShowSchema_WithMockDB(t *testing.T) {
+	mockDB := NewMockDBConnection()
+	session := NewSession(mockDB, "default")
+	ctx := context.Background()
+
+	t.Run("show_schema_with_tables", func(t *testing.T) {
+		err := session.showSchema(ctx)
+		if err != nil {
+			t.Fatalf("showSchema failed: %v", err)
+		}
+	})
+
+	t.Run("show_schema_empty_database", func(t *testing.T) {
+		emptyMockDB := &MockDBConnection{tables: []db.TableInfo{}}
+		emptySession := NewSession(emptyMockDB, "default")
+		
+		err := emptySession.showSchema(ctx)
+		if err != nil {
+			t.Fatalf("showSchema with empty DB failed: %v", err)
+		}
+	})
+
+	t.Run("show_schema_database_error", func(t *testing.T) {
+		errorMockDB := NewMockDBConnection()
+		errorMockDB.shouldFail = "ListTables"
+		errorSession := NewSession(errorMockDB, "default")
+		
+		err := errorSession.showSchema(ctx)
+		if err == nil {
+			t.Error("Expected error when ListTables fails")
+		}
+		if !strings.Contains(err.Error(), "failed to get schema") {
+			t.Errorf("Expected 'failed to get schema' error, got: %v", err)
+		}
+	})
+}
+
+func TestSession_ListTables_WithMockDB(t *testing.T) {
+	mockDB := NewMockDBConnection()
+	session := NewSession(mockDB, "default")
+	ctx := context.Background()
+
+	t.Run("list_tables_with_data", func(t *testing.T) {
+		err := session.listTables(ctx)
+		if err != nil {
+			t.Fatalf("listTables failed: %v", err)
+		}
+	})
+
+	t.Run("list_tables_empty_database", func(t *testing.T) {
+		emptyMockDB := &MockDBConnection{tables: []db.TableInfo{}}
+		emptySession := NewSession(emptyMockDB, "default")
+		
+		err := emptySession.listTables(ctx)
+		if err != nil {
+			t.Fatalf("listTables with empty DB failed: %v", err)
+		}
+	})
+
+	t.Run("list_tables_database_error", func(t *testing.T) {
+		errorMockDB := NewMockDBConnection()
+		errorMockDB.shouldFail = "ListTables"
+		errorSession := NewSession(errorMockDB, "default")
+		
+		err := errorSession.listTables(ctx)
+		if err == nil {
+			t.Error("Expected error when ListTables fails")
+		}
+		if !strings.Contains(err.Error(), "failed to list tables") {
+			t.Errorf("Expected 'failed to list tables' error, got: %v", err)
 		}
 	})
 }

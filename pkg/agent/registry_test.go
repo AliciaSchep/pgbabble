@@ -240,3 +240,182 @@ func TestToolRegistry_Clear(t *testing.T) {
 		t.Errorf("expected 0 tools after clear, got %d", len(names))
 	}
 }
+
+func TestToolRegistry_GetAllTools(t *testing.T) {
+	registry := NewToolRegistry()
+
+	// Test empty registry
+	tools := registry.GetAllTools()
+	if len(tools) != 0 {
+		t.Errorf("expected 0 tools in empty registry, got %d", len(tools))
+	}
+
+	// Add some tools
+	tool1 := &Tool{
+		Name:        "list_tables",
+		Description: "List database tables",
+		InputSchema: ToolSchema{Type: "object"},
+		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) {
+			return &ToolResult{Content: "table1, table2"}, nil
+		},
+	}
+	tool2 := &Tool{
+		Name:        "describe_table",
+		Description: "Describe table structure",
+		InputSchema: ToolSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"table": map[string]interface{}{"type": "string"},
+			},
+			Required: []string{"table"},
+		},
+		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) {
+			return &ToolResult{Content: "column details"}, nil
+		},
+	}
+
+	if err := registry.RegisterTool(tool1); err != nil {
+		t.Fatalf("failed to register tool1: %v", err)
+	}
+	if err := registry.RegisterTool(tool2); err != nil {
+		t.Fatalf("failed to register tool2: %v", err)
+	}
+
+	// Get all tools
+	tools = registry.GetAllTools()
+	if len(tools) != 2 {
+		t.Errorf("expected 2 tools, got %d", len(tools))
+	}
+
+	// Verify tools are returned correctly
+	toolMap := make(map[string]*Tool)
+	for _, tool := range tools {
+		toolMap[tool.Name] = tool
+	}
+
+	if tool, exists := toolMap["list_tables"]; !exists {
+		t.Error("expected 'list_tables' in returned tools")
+	} else {
+		if tool.Description != "List database tables" {
+			t.Errorf("expected description 'List database tables', got '%s'", tool.Description)
+		}
+	}
+
+	if tool, exists := toolMap["describe_table"]; !exists {
+		t.Error("expected 'describe_table' in returned tools")
+	} else {
+		if tool.Description != "Describe table structure" {
+			t.Errorf("expected description 'Describe table structure', got '%s'", tool.Description)
+		}
+		if len(tool.InputSchema.Required) != 1 || tool.InputSchema.Required[0] != "table" {
+			t.Errorf("expected required field 'table', got %v", tool.InputSchema.Required)
+		}
+	}
+}
+
+func TestToolRegistry_GetToolsForAnthropic(t *testing.T) {
+	registry := NewToolRegistry()
+
+	// Test empty registry
+	anthropicTools := registry.GetToolsForAnthropic()
+	if len(anthropicTools) != 0 {
+		t.Errorf("expected 0 tools for empty registry, got %d", len(anthropicTools))
+	}
+
+	// Add tools with different schema complexities
+	simpleTool := &Tool{
+		Name:        "simple_tool",
+		Description: "A simple tool",
+		InputSchema: ToolSchema{Type: "object"},
+		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) {
+			return &ToolResult{Content: "simple"}, nil
+		},
+	}
+
+	complexTool := &Tool{
+		Name:        "complex_tool",
+		Description: "A complex tool with parameters",
+		InputSchema: ToolSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"query": map[string]interface{}{
+					"type":        "string",
+					"description": "SQL query to execute",
+				},
+				"limit": map[string]interface{}{
+					"type":    "integer",
+					"minimum": 1,
+					"maximum": 1000,
+					"default": 100,
+				},
+			},
+			Required: []string{"query"},
+		},
+		Handler: func(ctx context.Context, input map[string]interface{}) (*ToolResult, error) {
+			return &ToolResult{Content: "complex result"}, nil
+		},
+	}
+
+	if err := registry.RegisterTool(simpleTool); err != nil {
+		t.Fatalf("failed to register simple tool: %v", err)
+	}
+	if err := registry.RegisterTool(complexTool); err != nil {
+		t.Fatalf("failed to register complex tool: %v", err)
+	}
+
+	// Get tools formatted for Anthropic
+	anthropicTools = registry.GetToolsForAnthropic()
+	if len(anthropicTools) != 2 {
+		t.Errorf("expected 2 anthropic tools, got %d", len(anthropicTools))
+	}
+
+	// Verify tool conversion
+	toolMap := make(map[string]map[string]interface{})
+	for _, tool := range anthropicTools {
+		if name, ok := tool["name"].(string); ok {
+			toolMap[name] = tool
+		}
+	}
+
+	// Check simple tool
+	if simpleDef, exists := toolMap["simple_tool"]; !exists {
+		t.Error("expected 'simple_tool' in anthropic tools")
+	} else {
+		if desc, ok := simpleDef["description"].(string); !ok || desc != "A simple tool" {
+			t.Errorf("expected description 'A simple tool', got '%v'", simpleDef["description"])
+		}
+		if inputSchema, ok := simpleDef["input_schema"].(ToolSchema); ok {
+			if inputSchema.Type != "object" {
+				t.Errorf("expected schema type 'object', got '%s'", inputSchema.Type)
+			}
+		} else {
+			t.Error("expected input_schema to be ToolSchema type")
+		}
+	}
+
+	// Check complex tool
+	if complexDef, exists := toolMap["complex_tool"]; !exists {
+		t.Error("expected 'complex_tool' in anthropic tools")
+	} else {
+		if desc, ok := complexDef["description"].(string); !ok || desc != "A complex tool with parameters" {
+			t.Errorf("expected description 'A complex tool with parameters', got '%v'", complexDef["description"])
+		}
+		if inputSchema, ok := complexDef["input_schema"].(ToolSchema); ok {
+			if inputSchema.Type != "object" {
+				t.Errorf("expected schema type 'object', got '%s'", inputSchema.Type)
+			}
+			
+			// Check properties were converted
+			if inputSchema.Properties == nil {
+				t.Error("expected properties to be converted")
+			}
+			
+			// Check required fields were converted
+			if len(inputSchema.Required) != 1 || inputSchema.Required[0] != "query" {
+				t.Errorf("expected required field 'query', got %v", inputSchema.Required)
+			}
+		} else {
+			t.Error("expected input_schema to be ToolSchema type")
+		}
+	}
+}

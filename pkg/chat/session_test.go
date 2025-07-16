@@ -7,9 +7,10 @@ import (
 	"testing"
 
 	"github.com/AliciaSchep/pgbabble/pkg/db"
+	"github.com/jackc/pgx/v5"
 )
 
-// MockDBConnection implements DatabaseConnection for testing
+// MockDBConnection implements db.Connection for testing
 type MockDBConnection struct {
 	tables       []db.TableInfo
 	tableDetails map[string]*db.TableInfo
@@ -95,8 +96,45 @@ func (m *MockDBConnection) GetForeignKeys(ctx context.Context, schema, tableName
 	return []db.ForeignKeyInfo{}, nil
 }
 
+// SearchColumns implements the SearchColumns method for the db.Connection interface
+func (m *MockDBConnection) SearchColumns(ctx context.Context, pattern string) ([]db.ColumnInfo, error) {
+	if m.shouldFail == "SearchColumns" {
+		return nil, fmt.Errorf("mock database error: SearchColumns failed")
+	}
+	// Mock implementation - return some columns that match the pattern
+	var results []db.ColumnInfo
+	for tableName, table := range m.tableDetails {
+		for _, col := range table.Columns {
+			if strings.Contains(strings.ToLower(col.Name), strings.ToLower(pattern)) {
+				results = append(results, db.ColumnInfo{
+					Name:        col.Name,
+					DataType:    col.DataType,
+					IsNullable:  col.IsNullable,
+					Default:     col.Default,
+					Description: fmt.Sprintf("Found in table: %s.%s", table.Schema, tableName),
+				})
+			}
+		}
+	}
+	return results, nil
+}
+
+// Query implements the Query method for the db.Connection interface
+func (m *MockDBConnection) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	if m.shouldFail == "Query" {
+		return nil, fmt.Errorf("mock database error: Query failed")
+	}
+	// Mock implementation - just return nil for now since we don't need it in these tests
+	return nil, fmt.Errorf("Query method not implemented in mock")
+}
+
+// EnsureConnection implements the EnsureConnection method for the db.Connection interface
+func (m *MockDBConnection) EnsureConnection(ctx context.Context) {
+	// Mock implementation - do nothing
+}
+
 // Helper functions to test database functions with mock
-func testShowSchemaWithDB(session *Session, mockDB DatabaseConnection, ctx context.Context) error {
+func testShowSchemaWithDB(session *Session, mockDB db.Connection, ctx context.Context) error {
 	// Temporarily replace the session's database methods for testing
 	// We'll call the functions directly with mock data
 	tables, err := mockDB.ListTables(ctx)
@@ -130,7 +168,7 @@ func testShowSchemaWithDB(session *Session, mockDB DatabaseConnection, ctx conte
 	return nil
 }
 
-func testListTablesWithDB(session *Session, mockDB DatabaseConnection, ctx context.Context) error {
+func testListTablesWithDB(session *Session, mockDB db.Connection, ctx context.Context) error {
 	tables, err := mockDB.ListTables(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list tables: %w", err)
@@ -151,7 +189,7 @@ func testListTablesWithDB(session *Session, mockDB DatabaseConnection, ctx conte
 	return nil
 }
 
-func testDescribeTableWithDB(session *Session, mockDB DatabaseConnection, ctx context.Context, tableName string) error {
+func testDescribeTableWithDB(session *Session, mockDB db.Connection, ctx context.Context, tableName string) error {
 	// Parse schema.table if provided (same logic as describeTable)
 	schema := "public"
 	if strings.Contains(tableName, ".") {
@@ -222,7 +260,7 @@ func testDescribeTableWithDB(session *Session, mockDB DatabaseConnection, ctx co
 }
 
 func TestNewSession(t *testing.T) {
-	var conn *db.Connection
+	var conn db.Connection
 	mode := "default"
 
 	session := NewSession(conn, mode)

@@ -48,7 +48,7 @@ type IndexInfo struct {
 }
 
 // ListTables returns all tables and views in the database
-func (c *Connection) ListTables(ctx context.Context) ([]TableInfo, error) {
+func (c *ConnectionImpl) ListTables(ctx context.Context) ([]TableInfo, error) {
 	query := `
 		SELECT 
 			n.nspname as schema_name,
@@ -87,7 +87,7 @@ func (c *Connection) ListTables(ctx context.Context) ([]TableInfo, error) {
 }
 
 // DescribeTable returns detailed information about a specific table
-func (c *Connection) DescribeTable(ctx context.Context, schema, tableName string) (*TableInfo, error) {
+func (c *ConnectionImpl) DescribeTable(ctx context.Context, schema, tableName string) (*TableInfo, error) {
 	// Default schema
 	if schema == "" {
 		schema = "public"
@@ -135,7 +135,7 @@ func (c *Connection) DescribeTable(ctx context.Context, schema, tableName string
 }
 
 // getTableColumns retrieves column information for a table
-func (c *Connection) getTableColumns(ctx context.Context, schema, tableName string) ([]ColumnInfo, error) {
+func (c *ConnectionImpl) getTableColumns(ctx context.Context, schema, tableName string) ([]ColumnInfo, error) {
 	query := `
 		SELECT 
 			c.column_name,
@@ -186,7 +186,7 @@ func (c *Connection) getTableColumns(ctx context.Context, schema, tableName stri
 }
 
 // getPrimaryKeyColumns returns the primary key column names for a table
-func (c *Connection) getPrimaryKeyColumns(ctx context.Context, schema, tableName string) ([]string, error) {
+func (c *ConnectionImpl) getPrimaryKeyColumns(ctx context.Context, schema, tableName string) ([]string, error) {
 	query := `
 		SELECT a.attname
 		FROM pg_index i
@@ -218,7 +218,7 @@ func (c *Connection) getPrimaryKeyColumns(ctx context.Context, schema, tableName
 }
 
 // GetForeignKeys returns foreign key relationships for a table
-func (c *Connection) GetForeignKeys(ctx context.Context, schema, tableName string) ([]ForeignKeyInfo, error) {
+func (c *ConnectionImpl) GetForeignKeys(ctx context.Context, schema, tableName string) ([]ForeignKeyInfo, error) {
 	if schema == "" {
 		schema = "public"
 	}
@@ -267,7 +267,7 @@ func (c *Connection) GetForeignKeys(ctx context.Context, schema, tableName strin
 }
 
 // SearchColumns searches for columns matching a pattern across all tables
-func (c *Connection) SearchColumns(ctx context.Context, pattern string) ([]ColumnInfo, error) {
+func (c *ConnectionImpl) SearchColumns(ctx context.Context, pattern string) ([]ColumnInfo, error) {
 	query := `
 		SELECT 
 			c.table_schema || '.' || c.table_name as table_name,

@@ -11,7 +11,6 @@ import (
 	"github.com/AliciaSchep/pgbabble/pkg/display"
 )
 
-
 // QueryTimeout is the default timeout for SQL query execution
 var QueryTimeout = 60 * time.Second
 

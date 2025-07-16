@@ -20,7 +20,7 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error)
 	if cfg == nil {
 		return nil, fmt.Errorf("database configuration cannot be nil")
 	}
-	
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid database configuration: %w", err)
 	}

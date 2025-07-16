@@ -20,18 +20,18 @@ type TestDatabase struct {
 func NewTestDatabase(ctx context.Context, t *testing.T) (*TestDatabase, error) {
 	// Try environment variables first (for CI or local development)
 	if envConfig := tryEnvironmentConfig(); envConfig != nil {
-		t.Logf("Using environment-configured test database: %s@%s:%d/%s", 
+		t.Logf("Using environment-configured test database: %s@%s:%d/%s",
 			envConfig.User, envConfig.Host, envConfig.Port, envConfig.Database)
-		
+
 		testDB := &TestDatabase{
 			Config: envConfig,
 		}
-		
+
 		// Setup schema and seed data
 		if err := testDB.setupSchema(ctx); err != nil {
 			return nil, fmt.Errorf("failed to setup test schema: %w", err)
 		}
-		
+
 		return testDB, nil
 	}
 

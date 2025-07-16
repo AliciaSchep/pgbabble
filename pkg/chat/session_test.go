@@ -805,7 +805,7 @@ func TestSession_DescribeTable_WithMockDB(t *testing.T) {
 		errorMockDB := NewMockDBConnection()
 		errorMockDB.shouldFail = "DescribeTable"
 		errorSession := NewSession(errorMockDB, "default")
-		
+
 		err := errorSession.describeTable(ctx, "users")
 		if err == nil {
 			t.Error("Expected error when DescribeTable fails")
@@ -819,7 +819,7 @@ func TestSession_DescribeTable_WithMockDB(t *testing.T) {
 		errorMockDB := NewMockDBConnection()
 		errorMockDB.shouldFail = "GetForeignKeys"
 		errorSession := NewSession(errorMockDB, "default")
-		
+
 		err := errorSession.describeTable(ctx, "users")
 		if err == nil {
 			t.Error("Expected error when GetForeignKeys fails")
@@ -845,7 +845,7 @@ func TestSession_ShowSchema_WithMockDB(t *testing.T) {
 	t.Run("show_schema_empty_database", func(t *testing.T) {
 		emptyMockDB := &MockDBConnection{tables: []db.TableInfo{}}
 		emptySession := NewSession(emptyMockDB, "default")
-		
+
 		err := emptySession.showSchema(ctx)
 		if err != nil {
 			t.Fatalf("showSchema with empty DB failed: %v", err)
@@ -856,7 +856,7 @@ func TestSession_ShowSchema_WithMockDB(t *testing.T) {
 		errorMockDB := NewMockDBConnection()
 		errorMockDB.shouldFail = "ListTables"
 		errorSession := NewSession(errorMockDB, "default")
-		
+
 		err := errorSession.showSchema(ctx)
 		if err == nil {
 			t.Error("Expected error when ListTables fails")
@@ -882,7 +882,7 @@ func TestSession_ListTables_WithMockDB(t *testing.T) {
 	t.Run("list_tables_empty_database", func(t *testing.T) {
 		emptyMockDB := &MockDBConnection{tables: []db.TableInfo{}}
 		emptySession := NewSession(emptyMockDB, "default")
-		
+
 		err := emptySession.listTables(ctx)
 		if err != nil {
 			t.Fatalf("listTables with empty DB failed: %v", err)
@@ -893,7 +893,7 @@ func TestSession_ListTables_WithMockDB(t *testing.T) {
 		errorMockDB := NewMockDBConnection()
 		errorMockDB.shouldFail = "ListTables"
 		errorSession := NewSession(errorMockDB, "default")
-		
+
 		err := errorSession.listTables(ctx)
 		if err == nil {
 			t.Error("Expected error when ListTables fails")

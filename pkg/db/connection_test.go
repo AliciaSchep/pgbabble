@@ -360,7 +360,6 @@ func TestConnection_WithRealDatabase(t *testing.T) {
 	})
 }
 
-
 // Helper function for string contains check
 func contains(str, substr string) bool {
 	return len(str) >= len(substr) && findSubstring(str, substr)

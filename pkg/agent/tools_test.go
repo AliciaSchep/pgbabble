@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AliciaSchep/pgbabble/internal/testutil"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -187,10 +188,10 @@ func TestTool_BasicExecution(t *testing.T) {
 
 // MockConnection implements db.Connection interface for testing
 type MockConnection struct {
-	tables     []db.TableInfo
+	tables      []db.TableInfo
 	foreignKeys []db.ForeignKeyInfo
-	columns    []db.ColumnInfo
-	queryError error
+	columns     []db.ColumnInfo
+	queryError  error
 	queryResult map[string]interface{}
 }
 
@@ -611,7 +612,321 @@ func TestExecuteApprovedSQL(t *testing.T) {
 	}
 }
 
-// Note: executeSelectQuery and executeExplainQuery are complex functions that require
-// actual database query execution with pgx.Rows. These would need more sophisticated
-// mocking to test thoroughly, but the validation logic is covered by other tests.
+// Real database integration tests for executeSelectQuery and executeExplainQuery
+func TestExecuteSelectQuery_WithRealDatabase(t *testing.T) {
+	cfg := testutil.GetRealDatabaseConfig()
+	if cfg == nil {
+		t.Skip("Skipping real database tests - no database config available.")
+		return
+	}
 
+	conn, err := db.Connect(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+	defer conn.Close()
+
+	ctx := context.Background()
+
+	// Setup test schema
+	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
+		return conn.Exec(ctx, sql)
+	}); err != nil {
+		t.Fatalf("Failed to setup test schema: %v", err)
+	}
+	defer func() {
+		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
+			return conn.Exec(ctx, sql)
+		}); err != nil {
+			t.Logf("Warning: Failed to cleanup test schema: %v", err)
+		}
+	}()
+
+	tests := []struct {
+		name    string
+		query   string
+		mode    string
+		wantErr bool
+	}{
+		{
+			name:    "simple select",
+			query:   "SELECT id, username FROM test_users ORDER BY id LIMIT 3",
+			mode:    "default",
+			wantErr: false,
+		},
+		{
+			name:    "select with join",
+			query:   "SELECT u.username, COUNT(o.id) FROM test_users u LEFT JOIN test_orders o ON u.id = o.user_id GROUP BY u.username ORDER BY u.username",
+			mode:    "default",
+			wantErr: false,
+		},
+		{
+			name:    "select with aggregation",
+			query:   "SELECT COUNT(*) as user_count FROM test_users",
+			mode:    "default",
+			wantErr: false,
+		},
+		{
+			name:    "invalid SQL syntax",
+			query:   "SELECT * FROM test_users WHERE",
+			mode:    "default",
+			wantErr: true,
+		},
+		{
+			name:    "non-existent table",
+			query:   "SELECT * FROM nonexistent_table",
+			mode:    "default",
+			wantErr: true,
+		},
+		{
+			name:    "dangerous query with semicolon",
+			query:   "SELECT * FROM test_users; DROP TABLE test_users;",
+			mode:    "default",
+			wantErr: true,
+		},
+		{
+			name:    "non-SELECT query",
+			query:   "UPDATE test_users SET username = 'hacked'",
+			mode:    "default",
+			wantErr: true,
+		},
+		{
+			name:    "explain mode query",
+			query:   "SELECT * FROM test_users WHERE id = 1",
+			mode:    "explain",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := executeSelectQuery(ctx, conn, tt.query, tt.mode)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("executeSelectQuery() expected error, but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("executeSelectQuery() unexpected error: %v", err)
+				return
+			}
+
+			// Verify we got some result
+			if result == "" {
+				t.Errorf("executeSelectQuery() returned empty result")
+			}
+
+			// For explain mode, result should contain execution plan info
+			if tt.mode == "explain" {
+				if !strings.Contains(result, "Query executed successfully") {
+					t.Errorf("executeSelectQuery() in explain mode should contain execution info")
+				}
+			} else {
+				// For default mode, result should contain data or execution info
+				if !strings.Contains(result, "Query executed successfully") && !strings.Contains(result, "rows") {
+					t.Errorf("executeSelectQuery() should contain execution info or data, got: %s", result)
+				}
+			}
+		})
+	}
+}
+
+func TestExecuteExplainQuery_WithRealDatabase(t *testing.T) {
+	cfg := testutil.GetRealDatabaseConfig()
+	if cfg == nil {
+		t.Skip("Skipping real database tests - no database config available.")
+		return
+	}
+
+	conn, err := db.Connect(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+	defer conn.Close()
+
+	ctx := context.Background()
+
+	// Setup test schema
+	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
+		return conn.Exec(ctx, sql)
+	}); err != nil {
+		t.Fatalf("Failed to setup test schema: %v", err)
+	}
+	defer func() {
+		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
+			return conn.Exec(ctx, sql)
+		}); err != nil {
+			t.Logf("Warning: Failed to cleanup test schema: %v", err)
+		}
+	}()
+
+	tests := []struct {
+		name    string
+		query   string
+		mode    string
+		wantErr bool
+	}{
+		{
+			name:    "simple explain",
+			query:   "SELECT * FROM test_users WHERE id = 1",
+			mode:    "default",
+			wantErr: false,
+		},
+		{
+			name:    "explain with join",
+			query:   "SELECT u.username, o.total_amount FROM test_users u JOIN test_orders o ON u.id = o.user_id",
+			mode:    "explain",
+			wantErr: false,
+		},
+		{
+			name:    "explain with aggregation",
+			query:   "SELECT COUNT(*) FROM test_users GROUP BY username",
+			mode:    "default",
+			wantErr: false,
+		},
+		{
+			name:    "invalid SQL syntax",
+			query:   "SELECT * FROM test_users WHERE",
+			mode:    "default",
+			wantErr: true,
+		},
+		{
+			name:    "non-SELECT query",
+			query:   "UPDATE test_users SET username = 'test'",
+			mode:    "default",
+			wantErr: true,
+		},
+		{
+			name:    "dangerous query pattern",
+			query:   "SELECT * FROM test_users; DROP TABLE test_users;",
+			mode:    "default",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := executeExplainQuery(ctx, conn, tt.query, tt.mode)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("executeExplainQuery() expected error, but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("executeExplainQuery() unexpected error: %v", err)
+				return
+			}
+
+			// Verify we got some result
+			if result == "" {
+				t.Errorf("executeExplainQuery() returned empty result")
+			}
+
+			// Result should contain query plan information
+			if !strings.Contains(result, "Query Execution Plan") && !strings.Contains(result, "EXPLAIN") {
+				t.Errorf("executeExplainQuery() should contain query plan info, got: %s", result)
+			}
+		})
+	}
+}
+
+func TestExecuteApprovedSQL_WithRealDatabase(t *testing.T) {
+	cfg := testutil.GetRealDatabaseConfig()
+	if cfg == nil {
+		t.Skip("Skipping real database tests - no database config available.")
+		return
+	}
+
+	conn, err := db.Connect(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+	defer conn.Close()
+
+	ctx := context.Background()
+
+	// Setup test schema
+	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
+		return conn.Exec(ctx, sql)
+	}); err != nil {
+		t.Fatalf("Failed to setup test schema: %v", err)
+	}
+	defer func() {
+		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
+			return conn.Exec(ctx, sql)
+		}); err != nil {
+			t.Logf("Warning: Failed to cleanup test schema: %v", err)
+		}
+	}()
+
+	tests := []struct {
+		name    string
+		query   string
+		mode    string
+		wantErr bool
+	}{
+		{
+			name:    "valid SELECT query",
+			query:   "SELECT COUNT(*) FROM test_users",
+			mode:    "default",
+			wantErr: false,
+		},
+		{
+			name:    "valid WITH query",
+			query:   "WITH user_stats AS (SELECT COUNT(*) as cnt FROM test_users) SELECT * FROM user_stats",
+			mode:    "default",
+			wantErr: false,
+		},
+		{
+			name:    "invalid DELETE query",
+			query:   "DELETE FROM test_users",
+			mode:    "default",
+			wantErr: true,
+		},
+		{
+			name:    "invalid UPDATE query",
+			query:   "UPDATE test_users SET name = 'test'",
+			mode:    "default",
+			wantErr: true,
+		},
+		{
+			name:    "dangerous query with semicolon",
+			query:   "SELECT * FROM test_users; DROP TABLE test_users;",
+			mode:    "default",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := executeApprovedSQL(ctx, conn, tt.query, tt.mode)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("executeApprovedSQL() expected error, but got none")
+				}
+				// For validation errors, result should be empty
+				if result != "" {
+					t.Errorf("executeApprovedSQL() expected empty result for error case, got: %s", result)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("executeApprovedSQL() unexpected error: %v", err)
+				return
+			}
+
+			// Verify we got some result
+			if result == "" {
+				t.Errorf("executeApprovedSQL() returned empty result")
+			}
+		})
+	}
+}

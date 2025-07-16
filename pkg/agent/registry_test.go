@@ -404,12 +404,12 @@ func TestToolRegistry_GetToolsForAnthropic(t *testing.T) {
 			if inputSchema.Type != "object" {
 				t.Errorf("expected schema type 'object', got '%s'", inputSchema.Type)
 			}
-			
+
 			// Check properties were converted
 			if inputSchema.Properties == nil {
 				t.Error("expected properties to be converted")
 			}
-			
+
 			// Check required fields were converted
 			if len(inputSchema.Required) != 1 || inputSchema.Required[0] != "query" {
 				t.Errorf("expected required field 'query', got %v", inputSchema.Required)

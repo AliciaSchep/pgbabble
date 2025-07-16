@@ -12,7 +12,6 @@ import (
 	"github.com/chzyer/readline"
 )
 
-
 // Session represents an interactive chat session
 type Session struct {
 	conn       db.Connection

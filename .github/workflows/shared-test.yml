@@ -1,0 +1,62 @@
+name: Shared Test
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: 'Go version to use'
+        required: false
+        type: string
+        default: '1.24.3'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+
+    - name: Download dependencies
+      run: make deps
+
+    - name: Check formatting
+      run: |
+        make fmt
+        if ! git diff --exit-code; then
+          echo "Code is not formatted or modules need tidying. Run 'make fmt' to fix."
+          exit 1
+        fi
+
+    - name: Run integration tests with database
+      env:
+        PGBABBLE_TEST_HOST: localhost
+        PGBABBLE_TEST_PORT: 5432
+        PGBABBLE_TEST_USER: testuser
+        PGBABBLE_TEST_PASSWORD: testpass
+        PGBABBLE_TEST_DATABASE: testdb
+      run: go test ./... -v -cover
+
+    - name: Run linter
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest

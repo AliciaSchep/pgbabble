@@ -192,7 +192,6 @@ type MockConnection struct {
 	foreignKeys []db.ForeignKeyInfo
 	columns     []db.ColumnInfo
 	queryError  error
-	queryResult map[string]interface{}
 }
 
 func (m *MockConnection) ListTables(ctx context.Context) ([]db.TableInfo, error) {
@@ -628,19 +627,8 @@ func TestExecuteSelectQuery_WithRealDatabase(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Setup test schema
-	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
-		return conn.Exec(ctx, sql)
-	}); err != nil {
-		t.Fatalf("Failed to setup test schema: %v", err)
-	}
-	defer func() {
-		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
-			return conn.Exec(ctx, sql)
-		}); err != nil {
-			t.Logf("Warning: Failed to cleanup test schema: %v", err)
-		}
-	}()
+	// Database should already be seeded with test schema and data
+	// by the make test-db-seed step
 
 	tests := []struct {
 		name    string
@@ -749,19 +737,8 @@ func TestExecuteExplainQuery_WithRealDatabase(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Setup test schema
-	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
-		return conn.Exec(ctx, sql)
-	}); err != nil {
-		t.Fatalf("Failed to setup test schema: %v", err)
-	}
-	defer func() {
-		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
-			return conn.Exec(ctx, sql)
-		}); err != nil {
-			t.Logf("Warning: Failed to cleanup test schema: %v", err)
-		}
-	}()
+	// Database should already be seeded with test schema and data
+	// by the make test-db-seed step
 
 	tests := []struct {
 		name    string
@@ -851,19 +828,8 @@ func TestExecuteApprovedSQL_WithRealDatabase(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Setup test schema
-	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
-		return conn.Exec(ctx, sql)
-	}); err != nil {
-		t.Fatalf("Failed to setup test schema: %v", err)
-	}
-	defer func() {
-		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
-			return conn.Exec(ctx, sql)
-		}); err != nil {
-			t.Logf("Warning: Failed to cleanup test schema: %v", err)
-		}
-	}()
+	// Database should already be seeded with test schema and data
+	// by the make test-db-seed step
 
 	tests := []struct {
 		name    string

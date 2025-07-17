@@ -133,131 +133,9 @@ func (m *MockDBConnection) EnsureConnection(ctx context.Context) {
 	// Mock implementation - do nothing
 }
 
-// Helper functions to test database functions with mock
-func testShowSchemaWithDB(session *Session, mockDB db.Connection, ctx context.Context) error {
-	// Temporarily replace the session's database methods for testing
-	// We'll call the functions directly with mock data
-	tables, err := mockDB.ListTables(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get schema: %w", err)
-	}
+// Helper functions removed - were unused
 
-	if len(tables) == 0 {
-		fmt.Println("No tables found in the database.")
-		return nil
-	}
 
-	fmt.Println("Database Schema Overview:")
-	fmt.Println("========================")
-
-	// Group by schema (same logic as showSchema)
-	schemaMap := make(map[string][]db.TableInfo)
-	for _, table := range tables {
-		schemaMap[table.Schema] = append(schemaMap[table.Schema], table)
-	}
-
-	for schema, schemaTables := range schemaMap {
-		fmt.Printf("\nSchema: %s\n", schema)
-		fmt.Println(strings.Repeat("-", len(schema)+8))
-
-		for _, table := range schemaTables {
-			fmt.Printf("  %s (%s)\n", table.Name, table.Type)
-		}
-	}
-
-	return nil
-}
-
-func testListTablesWithDB(session *Session, mockDB db.Connection, ctx context.Context) error {
-	tables, err := mockDB.ListTables(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list tables: %w", err)
-	}
-
-	if len(tables) == 0 {
-		fmt.Println("No tables found in the database.")
-		return nil
-	}
-
-	fmt.Println("Tables and Views:")
-	fmt.Println("=================")
-
-	for _, table := range tables {
-		fmt.Printf("%-20s %-10s %s\n", table.Name, table.Type, table.Schema)
-	}
-
-	return nil
-}
-
-func testDescribeTableWithDB(session *Session, mockDB db.Connection, ctx context.Context, tableName string) error {
-	// Parse schema.table if provided (same logic as describeTable)
-	schema := "public"
-	if strings.Contains(tableName, ".") {
-		parts := strings.Split(tableName, ".")
-		if len(parts) == 2 {
-			schema = parts[0]
-			tableName = parts[1]
-		}
-	}
-
-	table, err := mockDB.DescribeTable(ctx, schema, tableName)
-	if err != nil {
-		return fmt.Errorf("failed to describe table: %w", err)
-	}
-
-	fmt.Printf("Table: %s.%s (%s)\n", table.Schema, table.Name, table.Type)
-	if table.Description != "" {
-		fmt.Printf("Description: %s\n", table.Description)
-	}
-	fmt.Println()
-
-	if len(table.Columns) == 0 {
-		fmt.Println("No columns found.")
-		return nil
-	}
-
-	fmt.Println("Columns:")
-	fmt.Println("========")
-	fmt.Printf("%-20s %-15s %-8s %-8s %s\n", "Name", "Type", "Nullable", "Key", "Default")
-	fmt.Println(strings.Repeat("-", 70))
-
-	for _, col := range table.Columns {
-		nullable := "YES"
-		if !col.IsNullable {
-			nullable = "NO"
-		}
-
-		key := ""
-		if col.IsPrimaryKey {
-			key = "PK"
-		}
-
-		defaultVal := col.Default
-		if defaultVal == "" {
-			defaultVal = "(none)"
-		}
-
-		fmt.Printf("%-20s %-15s %-8s %-8s %s\n",
-			col.Name, col.DataType, nullable, key, defaultVal)
-	}
-
-	// Show foreign keys if any
-	foreignKeys, err := mockDB.GetForeignKeys(ctx, schema, tableName)
-	if err != nil {
-		return fmt.Errorf("failed to get foreign keys: %w", err)
-	}
-
-	if len(foreignKeys) > 0 {
-		fmt.Println("\nForeign Keys:")
-		fmt.Println("=============")
-		for _, fk := range foreignKeys {
-			fmt.Printf("%s -> %s.%s.%s\n",
-				fk.ColumnName, fk.ForeignTableSchema, fk.ForeignTableName, fk.ForeignColumnName)
-		}
-	}
-
-	return nil
-}
 
 func TestNewSession(t *testing.T) {
 	var conn db.Connection
@@ -669,7 +547,7 @@ func TestSession_DatabaseMethods_ErrorHandling(t *testing.T) {
 				t.Error("Expected panic with nil connection")
 			}
 		}()
-		session.showSchema(ctx)
+		_ = session.showSchema(ctx) // Expected to panic, return value irrelevant
 	})
 
 	t.Run("listTables_with_nil_connection", func(t *testing.T) {
@@ -678,7 +556,7 @@ func TestSession_DatabaseMethods_ErrorHandling(t *testing.T) {
 				t.Error("Expected panic with nil connection")
 			}
 		}()
-		session.listTables(ctx)
+		_ = session.listTables(ctx) // Expected to panic, return value irrelevant
 	})
 
 	t.Run("describeTable_with_nil_connection", func(t *testing.T) {
@@ -687,7 +565,7 @@ func TestSession_DatabaseMethods_ErrorHandling(t *testing.T) {
 				t.Error("Expected panic with nil connection")
 			}
 		}()
-		session.describeTable(ctx, "users")
+		_ = session.describeTable(ctx, "users") // Expected to panic, return value irrelevant
 	})
 
 	t.Run("browseLastResults_with_no_results", func(t *testing.T) {
@@ -727,6 +605,7 @@ func TestSession_HandleQuery_WithAgentReady(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
 			// Expected behavior - nil agent with agentReady=true should cause issues
+			t.Log("Expected panic occurred with nil agent")
 		}
 	}()
 

@@ -1,4 +1,4 @@
-.PHONY: build test clean install help test-db-start test-db-stop test-db-reset test-with-db
+.PHONY: build test clean install help test-db-start test-db-stop test-db-reset test-db-seed test-with-db
 
 BINARY_NAME=pgbabble
 BUILD_DIR=./build
@@ -85,8 +85,18 @@ test-db-stop:
 # Reset test database (stop and start)
 test-db-reset: test-db-stop test-db-start
 
+# Seed test database with schema and test data
+test-db-seed:
+	@echo "Seeding test database..."
+	@PGBABBLE_TEST_HOST=localhost \
+	 PGBABBLE_TEST_PORT=$(TEST_DB_PORT) \
+	 PGBABBLE_TEST_USER=$(TEST_DB_USER) \
+	 PGBABBLE_TEST_PASSWORD=$(TEST_DB_PASSWORD) \
+	 PGBABBLE_TEST_DATABASE=$(TEST_DB_NAME) \
+	 go run ./scripts/seed-test-db.go
+
 # Run tests with database
-test-with-db: test-db-start
+test-with-db: test-db-start test-db-seed
 	@echo "Running tests with test database..."
 	@PGBABBLE_TEST_HOST=localhost \
 	 PGBABBLE_TEST_PORT=$(TEST_DB_PORT) \
@@ -97,7 +107,7 @@ test-with-db: test-db-start
 	@$(MAKE) test-db-stop
 
 # Run tests with database and coverage
-test-with-db-coverage: test-db-start
+test-with-db-coverage: test-db-start test-db-seed
 	@echo "Running tests with test database and coverage..."
 	@PGBABBLE_TEST_HOST=localhost \
 	 PGBABBLE_TEST_PORT=$(TEST_DB_PORT) \
@@ -118,6 +128,7 @@ help:
 	@echo "  test-db-start         - Start PostgreSQL test database container"
 	@echo "  test-db-stop          - Stop and remove test database container"
 	@echo "  test-db-reset         - Stop and restart test database"
+	@echo "  test-db-seed          - Seed test database with schema and test data"
 	@echo "  test-with-db          - Run all tests with real database"
 	@echo "  test-with-db-coverage - Run all tests with real database and coverage"
 	@echo "  clean                 - Clean build artifacts"

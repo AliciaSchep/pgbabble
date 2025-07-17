@@ -11,8 +11,7 @@ import (
 
 // TestDatabase represents a test database instance
 type TestDatabase struct {
-	Config    *config.DBConfig
-	dockerCmd string // Track if we started a container
+	Config *config.DBConfig
 }
 
 // NewTestDatabase creates a new PostgreSQL test database

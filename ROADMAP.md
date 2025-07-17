@@ -9,24 +9,6 @@
 
 ## P0 - Critical Priority
 
-### Improved conversation handling
-* **Context awareness**: Add information about current "mode" to the system prompt
-* **Mode change notifications**: After changing "mode", send a message to agent to inform it
-* **Smart table exploration**: Update system prompt to recommend doing list_tables rather than jumping into describe_table unless a specific table name has been given
-* **Query flow control**: Prevent agent from doing two query or explain tool calls in a row without user input
-* **Enhanced LLM feedback**: Improve messages sent back to LLM after tool calls with richer context
-* **Conversation state tracking**: Maintain context about previous queries and results within the session
-* **Error context preservation**: When queries fail, maintain conversation context to help LLM understand what went wrong
-
-### Result limiting
-* **CLI argument**: Add ROWS_LIMIT argument that defaults to 1000 for number of rows to limit fetching
-* **Database-level enforcement**: Apply LIMIT clause at database level for efficiency
-* **Unlimited option**: Allow limit to be set to 0 for no restriction
-* **Runtime modification**: Add `/limit` slash command to modify limit in-session
-* **Smart pagination**: Implement pagination for large result sets with navigation controls
-* **Memory management**: Ensure large result sets don't consume excessive memory
-* **Progressive loading**: Load results in chunks for better responsiveness with very large datasets
-
 ### Improved Testing
 * **Coverage analysis**: Use coverage tools to identify untested code paths and aim for >80% coverage
 * **Test quality review**: Review current tests to identify areas of improvement and test reliability
@@ -45,17 +27,17 @@
 * **Transaction safety**: Ensure proper transaction rollback on errors
 * **Network error recovery**: Handle network interruptions gracefully with retry mechanisms
 
-### CI workflow
-* **Basic automation**: Setup GitHub Actions to run test suite on all PRs and pushes
-* **Cross-platform builds**: Build binaries for Linux, macOS, and Windows
-* **Security scanning**: Add vulnerability scanning for dependencies
-* **Release automation**: Automate release creation with tagged versions
-* **Artifact publishing**: Publish binaries to GitHub releases
-* **Code quality checks**: Integrate linting and formatting checks
-
 ---
 
 ## P1 - High Priority
+
+### Add option to save results
+* **CSV export**: Add `/save` command to export current result set to CSV format
+* **File naming**: Smart default file naming with timestamps and query context, but option to give a file name `/save <path>`
+
+### Turn limiting
+* **Query flow control**: Prevent agent from doing two query or explain tool calls in a row without user input
+* **General limiting**: Set higher limit for number of consecutive tool calls
 
 ### Multi-provider LLM support
 * **Provider abstraction**: Create a unified interface for different LLM providers
@@ -66,18 +48,18 @@
 * **Model selection**: Allow users to choose specific models within a provider
 * **Cost optimization**: Track token usage and costs across different providers
 
-### Add option to save
-* **CSV export**: Add `/save csv` command to export current result set to CSV format
-* **JSON export**: Add `/save json` command for structured data export
-* **TSV export**: Add `/save tsv` command for tab-separated values
-* **Custom delimiters**: Allow custom field separators for export formats
-* **Header options**: Option to include/exclude column headers in exports
-* **File naming**: Smart default file naming with timestamps and query context
-* **Append mode**: Option to append results to existing files
-
 ---
 
 ## P2 - Medium Priority
+
+### Result limiting
+* **CLI argument**: Add ROWS_LIMIT argument that defaults to 1000 for number of rows to limit fetching
+* **Database-level enforcement**: Apply LIMIT clause at database level for efficiency
+* **Unlimited option**: Allow limit to be set to 0 for no restriction
+* **Runtime modification**: Add `/limit` slash command to modify limit in-session
+* **Smart pagination**: Implement pagination for large result sets with navigation controls
+* **Memory management**: Ensure large result sets don't consume excessive memory
+* **Progressive loading**: Load results in chunks for better responsiveness with very large datasets
 
 ### Add manual sql option with autocomplete
 * **SQL mode command**: Add `/sql` command to enter manual SQL editing mode

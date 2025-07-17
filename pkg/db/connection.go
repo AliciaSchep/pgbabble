@@ -9,14 +9,18 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Connection wraps a PostgreSQL connection
-type Connection struct {
+// ConnectionImpl wraps a PostgreSQL connection and implements the Connection interface
+type ConnectionImpl struct {
 	conn   *pgx.Conn
 	config *config.DBConfig
 }
 
 // Connect establishes a connection to PostgreSQL using the provided config
-func Connect(ctx context.Context, cfg *config.DBConfig) (*Connection, error) {
+func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("database configuration cannot be nil")
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid database configuration: %w", err)
 	}
@@ -35,14 +39,14 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*Connection, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &Connection{
+	return &ConnectionImpl{
 		conn:   conn,
 		config: cfg,
 	}, nil
 }
 
 // Close closes the database connection
-func (c *Connection) Close() {
+func (c *ConnectionImpl) Close() {
 	if c.conn != nil {
 		if err := c.conn.Close(context.Background()); err != nil {
 			fmt.Printf("Warning: failed to close connection: %v\n", err)
@@ -51,17 +55,17 @@ func (c *Connection) Close() {
 }
 
 // Query executes a query and returns the rows
-func (c *Connection) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+func (c *ConnectionImpl) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
 	return c.conn.Query(ctx, sql, args...)
 }
 
 // QueryRow executes a query that returns at most one row
-func (c *Connection) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+func (c *ConnectionImpl) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
 	return c.conn.QueryRow(ctx, sql, args...)
 }
 
 // EnsureConnection ensures we have a healthy database connection, reconnecting if necessary
-func (c *Connection) EnsureConnection(ctx context.Context) {
+func (c *ConnectionImpl) EnsureConnection(ctx context.Context) {
 	if c.conn == nil {
 		// Initial connection during startup
 		c.reconnectWithRetry(ctx)
@@ -87,7 +91,7 @@ func (c *Connection) EnsureConnection(ctx context.Context) {
 }
 
 // reconnectWithRetry attempts to reconnect to the database
-func (c *Connection) reconnectWithRetry(ctx context.Context) {
+func (c *ConnectionImpl) reconnectWithRetry(ctx context.Context) {
 	// Create new connection
 	conn, err := pgx.Connect(ctx, c.config.ConnectionString())
 	if err != nil {
@@ -109,13 +113,13 @@ func (c *Connection) reconnectWithRetry(ctx context.Context) {
 }
 
 // Exec executes a query without returning any rows
-func (c *Connection) Exec(ctx context.Context, sql string, args ...interface{}) error {
+func (c *ConnectionImpl) Exec(ctx context.Context, sql string, args ...interface{}) error {
 	_, err := c.conn.Exec(ctx, sql, args...)
 	return err
 }
 
 // GetDatabaseInfo returns basic information about the connected database
-func (c *Connection) GetDatabaseInfo(ctx context.Context) (*DatabaseInfo, error) {
+func (c *ConnectionImpl) GetDatabaseInfo(ctx context.Context) (*DatabaseInfo, error) {
 	info := &DatabaseInfo{
 		Host:     c.config.Host,
 		Port:     c.config.Port,

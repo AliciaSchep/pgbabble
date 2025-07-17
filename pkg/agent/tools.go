@@ -25,7 +25,7 @@ type QueryResultWithData struct {
 }
 
 // CreateSchemaTools creates all schema inspection tools for the LLM
-func CreateSchemaTools(conn *db.Connection, mode string) []*Tool {
+func CreateSchemaTools(conn db.Connection, mode string) []*Tool {
 	return []*Tool{
 		createListTablesTool(conn, mode),
 		createDescribeTableTool(conn),
@@ -35,7 +35,7 @@ func CreateSchemaTools(conn *db.Connection, mode string) []*Tool {
 }
 
 // CreateExecutionTools creates SQL execution tools for the LLM
-func CreateExecutionTools(conn *db.Connection, getUserApproval func(string) bool, mode string) []*Tool {
+func CreateExecutionTools(conn db.Connection, getUserApproval func(string) bool, mode string) []*Tool {
 	return []*Tool{
 		createExecuteSQLTool(conn, getUserApproval, mode),
 		createExplainQueryTool(conn, getUserApproval, mode),
@@ -43,7 +43,7 @@ func CreateExecutionTools(conn *db.Connection, getUserApproval func(string) bool
 }
 
 // createListTablesTool creates a tool to list all tables and views
-func createListTablesTool(conn *db.Connection, mode string) *Tool {
+func createListTablesTool(conn db.Connection, mode string) *Tool {
 	return &Tool{
 		Name:        "list_tables",
 		Description: "Lists all tables and views in the database with their types and schemas",
@@ -105,7 +105,7 @@ func createListTablesTool(conn *db.Connection, mode string) *Tool {
 }
 
 // createDescribeTableTool creates a tool to describe a specific table
-func createDescribeTableTool(conn *db.Connection) *Tool {
+func createDescribeTableTool(conn db.Connection) *Tool {
 	return &Tool{
 		Name:        "describe_table",
 		Description: "Gets detailed information about a specific table including columns, data types, constraints, and relationships",
@@ -202,7 +202,7 @@ func createDescribeTableTool(conn *db.Connection) *Tool {
 }
 
 // createGetRelationshipsTool creates a tool to get foreign key relationships for a table
-func createGetRelationshipsTool(conn *db.Connection) *Tool {
+func createGetRelationshipsTool(conn db.Connection) *Tool {
 	return &Tool{
 		Name:        "get_relationships",
 		Description: "Gets foreign key relationships for a specific table, showing how it connects to other tables",
@@ -267,7 +267,7 @@ func createGetRelationshipsTool(conn *db.Connection) *Tool {
 }
 
 // createSearchColumnsTool creates a tool to search for columns matching a pattern
-func createSearchColumnsTool(conn *db.Connection) *Tool {
+func createSearchColumnsTool(conn db.Connection) *Tool {
 	return &Tool{
 		Name:        "search_columns",
 		Description: "Searches for columns matching a pattern across all tables in the database",
@@ -358,7 +358,7 @@ func MarshalToolsToJSON(tools []*Tool) (string, error) {
 }
 
 // createExecuteSQLTool creates a tool for executing SQL queries with user approval
-func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool, mode string) *Tool {
+func createExecuteSQLTool(conn db.Connection, getUserApproval func(string) bool, mode string) *Tool {
 	return &Tool{
 		Name:        "execute_sql",
 		Description: "Execute a SQL query after getting user approval. Use this when you have generated a SQL query that answers the user's question. IMPORTANT: If the user rejects the query, do NOT immediately offer another SQL query. Instead, ask the user what they want changed or modified about the query approach.",
@@ -418,7 +418,7 @@ func createExecuteSQLTool(conn *db.Connection, getUserApproval func(string) bool
 }
 
 // executeApprovedSQL executes SQL and returns execution metadata (not actual data)
-func executeApprovedSQL(ctx context.Context, conn *db.Connection, sqlQuery string, mode string) (string, error) {
+func executeApprovedSQL(ctx context.Context, conn db.Connection, sqlQuery string, mode string) (string, error) {
 	// Validate that query is safe to execute
 	if err := validateSafeQuery(sqlQuery); err != nil {
 		return "", err
@@ -429,7 +429,7 @@ func executeApprovedSQL(ctx context.Context, conn *db.Connection, sqlQuery strin
 }
 
 // executeSelectQuery executes a SELECT query and displays results to user
-func executeSelectQuery(ctx context.Context, conn *db.Connection, sqlQuery string, mode string) (string, error) {
+func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string, mode string) (string, error) {
 	// Add configurable query timeout while preserving cancellation from parent context
 	queryCtx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
@@ -761,7 +761,7 @@ func formatDatabaseError(err error) string {
 }
 
 // createExplainQueryTool creates a tool for analyzing query execution plans
-func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bool, mode string) *Tool {
+func createExplainQueryTool(conn db.Connection, getUserApproval func(string) bool, mode string) *Tool {
 	return &Tool{
 		Name:        "explain_query",
 		Description: "Analyze a SQL query's execution plan using EXPLAIN (without actually executing the query). This helps understand query performance and optimization opportunities. IMPORTANT: If the user declines analysis, ask what they want changed or if they prefer a different approach.",
@@ -839,7 +839,7 @@ func createExplainQueryTool(conn *db.Connection, getUserApproval func(string) bo
 }
 
 // executeExplainQuery executes EXPLAIN query and returns formatted results for LLM
-func executeExplainQuery(ctx context.Context, conn *db.Connection, explainSQL, originalSQL string) (string, error) {
+func executeExplainQuery(ctx context.Context, conn db.Connection, explainSQL, originalSQL string) (string, error) {
 	// Add timeout for EXPLAIN queries while preserving cancellation from parent context
 	queryCtx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()

@@ -14,7 +14,7 @@ import (
 
 // Session represents an interactive chat session
 type Session struct {
-	conn       *db.Connection
+	conn       db.Connection
 	mode       string
 	rl         *readline.Instance
 	agent      *agent.Agent
@@ -22,7 +22,7 @@ type Session struct {
 }
 
 // NewSession creates a new chat session
-func NewSession(conn *db.Connection, mode string) *Session {
+func NewSession(conn db.Connection, mode string) *Session {
 	return &Session{
 		conn:       conn,
 		mode:       mode,

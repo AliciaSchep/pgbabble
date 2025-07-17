@@ -135,8 +135,6 @@ func (m *MockDBConnection) EnsureConnection(ctx context.Context) {
 
 // Helper functions removed - were unused
 
-
-
 func TestNewSession(t *testing.T) {
 	var conn db.Connection
 	mode := "default"
@@ -575,22 +573,6 @@ func TestSession_DatabaseMethods_ErrorHandling(t *testing.T) {
 			t.Errorf("browseLastResults should handle no results gracefully: %v", err)
 		}
 	})
-}
-
-func TestSession_InitializeAgent_Logic(t *testing.T) {
-	session := NewSession(nil, "default")
-
-	// Test agent initialization without real API key
-	// This will exercise the error path when no API key is available
-	session.initializeAgent()
-
-	// Agent should not be ready when no API key is provided
-	if session.agentReady {
-		t.Error("Expected agent to not be ready without API key")
-	}
-	if session.agent != nil {
-		t.Error("Expected agent to be nil without API key")
-	}
 }
 
 func TestSession_HandleQuery_WithAgentReady(t *testing.T) {

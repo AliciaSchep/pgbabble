@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/AliciaSchep/pgbabble/internal/testutil"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
@@ -20,11 +21,22 @@ func main() {
 
 	fmt.Printf("📡 Connecting to test database: %s@%s:%d/%s\n", cfg.User, cfg.Host, cfg.Port, cfg.Database)
 
-	// Connect to the database
+	// Connect to the database with retries
 	ctx := context.Background()
-	conn, err := db.Connect(ctx, cfg)
+	var conn *db.ConnectionImpl
+	var err error
+	
+	for i := 0; i < 5; i++ {
+		conn, err = db.Connect(ctx, cfg)
+		if err == nil {
+			break
+		}
+		fmt.Printf("⏳ Connection attempt %d failed, retrying in 2 seconds...\n", i+1)
+		time.Sleep(2 * time.Second)
+	}
+	
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to test database: %v", err)
+		log.Fatalf("❌ Failed to connect to test database after 5 attempts: %v", err)
 	}
 	defer conn.Close()
 

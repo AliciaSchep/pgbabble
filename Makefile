@@ -24,15 +24,30 @@ build-release:
 
 # Run tests
 test:
-	go test ./...
+	@PGBABBLE_TEST_HOST=localhost \
+	 PGBABBLE_TEST_PORT=$(TEST_DB_PORT) \
+	 PGBABBLE_TEST_USER=$(TEST_DB_USER) \
+	 PGBABBLE_TEST_PASSWORD=$(TEST_DB_PASSWORD) \
+	 PGBABBLE_TEST_DATABASE=$(TEST_DB_NAME) \
+	 go test ./...
 
 # Run tests with coverage
 test-coverage:
-	go test -cover ./...
+	@PGBABBLE_TEST_HOST=localhost \
+	 PGBABBLE_TEST_PORT=$(TEST_DB_PORT) \
+	 PGBABBLE_TEST_USER=$(TEST_DB_USER) \
+	 PGBABBLE_TEST_PASSWORD=$(TEST_DB_PASSWORD) \
+	 PGBABBLE_TEST_DATABASE=$(TEST_DB_NAME) \
+	 go test -cover ./...
 
 # Run tests with verbose output
 test-verbose:
-	go test -v ./...
+	@PGBABBLE_TEST_HOST=localhost \
+	 PGBABBLE_TEST_PORT=$(TEST_DB_PORT) \
+	 PGBABBLE_TEST_USER=$(TEST_DB_USER) \
+	 PGBABBLE_TEST_PASSWORD=$(TEST_DB_PASSWORD) \
+	 PGBABBLE_TEST_DATABASE=$(TEST_DB_NAME) \
+	 go test -v ./...
 
 # Clean build artifacts
 clean:
@@ -94,28 +109,6 @@ test-db-seed:
 	 PGBABBLE_TEST_PASSWORD=$(TEST_DB_PASSWORD) \
 	 PGBABBLE_TEST_DATABASE=$(TEST_DB_NAME) \
 	 go run ./scripts/seed-test-db.go
-
-# Run tests with database
-test-with-db: test-db-start test-db-seed
-	@echo "Running tests with test database..."
-	@PGBABBLE_TEST_HOST=localhost \
-	 PGBABBLE_TEST_PORT=$(TEST_DB_PORT) \
-	 PGBABBLE_TEST_USER=$(TEST_DB_USER) \
-	 PGBABBLE_TEST_PASSWORD=$(TEST_DB_PASSWORD) \
-	 PGBABBLE_TEST_DATABASE=$(TEST_DB_NAME) \
-	 go test ./... -v
-	@$(MAKE) test-db-stop
-
-# Run tests with database and coverage
-test-with-db-coverage: test-db-start test-db-seed
-	@echo "Running tests with test database and coverage..."
-	@PGBABBLE_TEST_HOST=localhost \
-	 PGBABBLE_TEST_PORT=$(TEST_DB_PORT) \
-	 PGBABBLE_TEST_USER=$(TEST_DB_USER) \
-	 PGBABBLE_TEST_PASSWORD=$(TEST_DB_PASSWORD) \
-	 PGBABBLE_TEST_DATABASE=$(TEST_DB_NAME) \
-	 go test ./... -cover
-	@$(MAKE) test-db-stop
 
 # Show help
 help:

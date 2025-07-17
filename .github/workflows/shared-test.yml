@@ -47,6 +47,9 @@ jobs:
           exit 1
         fi
 
+    - name: Seed test database
+      run: make test-db-seed
+
     - name: Run integration tests with database
       env:
         PGBABBLE_TEST_HOST: localhost

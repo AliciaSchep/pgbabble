@@ -25,7 +25,7 @@ func main() {
 	ctx := context.Background()
 	var conn *db.ConnectionImpl
 	var err error
-	
+
 	for i := 0; i < 5; i++ {
 		conn, err = db.Connect(ctx, cfg)
 		if err == nil {
@@ -34,7 +34,7 @@ func main() {
 		fmt.Printf("⏳ Connection attempt %d failed, retrying in 2 seconds...\n", i+1)
 		time.Sleep(2 * time.Second)
 	}
-	
+
 	if err != nil {
 		log.Fatalf("❌ Failed to connect to test database after 5 attempts: %v", err)
 	}

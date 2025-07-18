@@ -10,7 +10,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-const DefaultModel = "claude-3-5-sonnet-20241022"
+const DefaultModel = "claude-3-7-sonnet-20250219"
 
 type Agent struct {
 	client       *anthropic.Client

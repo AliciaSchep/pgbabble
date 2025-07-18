@@ -7,7 +7,6 @@ import (
 	"github.com/AliciaSchep/pgbabble/internal/testutil"
 )
 
-
 func TestListTables_WithRealDatabase(t *testing.T) {
 	cfg := testutil.GetRealDatabaseConfig()
 	if cfg == nil {

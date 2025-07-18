@@ -29,7 +29,7 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error)
 	// Create single connection
 	conn, err := pgx.Connect(ctx, cfg.ConnectionString())
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to PostgreSQL %s@%s:%d/%s: %w", 
+		return nil, fmt.Errorf("failed to connect to PostgreSQL %s@%s:%d/%s: %w",
 			cfg.User, cfg.Host, cfg.Port, cfg.Database, err)
 	}
 
@@ -38,7 +38,7 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error)
 		if closeErr := conn.Close(ctx); closeErr != nil {
 			errors.ConnectionWarning("failed to close connection during setup: %v", closeErr)
 		}
-		return nil, fmt.Errorf("failed to ping PostgreSQL %s@%s:%d/%s: %w", 
+		return nil, fmt.Errorf("failed to ping PostgreSQL %s@%s:%d/%s: %w",
 			cfg.User, cfg.Host, cfg.Port, cfg.Database, err)
 	}
 
@@ -79,21 +79,21 @@ func (c *ConnectionImpl) EnsureConnection(ctx context.Context) {
 	err := c.conn.Ping(ctx)
 	retryCount := 0
 	maxRetries := 3
-	
+
 	for err != nil && retryCount < maxRetries {
 		// Check if context was cancelled
 		if ctx.Err() != nil {
 			fmt.Printf(" connection retry cancelled: %v\n", ctx.Err())
 			return
 		}
-		
+
 		fmt.Print("Connection to PostgreSQL was lost. Waiting 5s...")
 		if c.conn != nil {
 			if err := c.conn.Close(ctx); err != nil {
 				errors.ConnectionWarning("failed to close stale connection: %v", err)
 			}
 		}
-		
+
 		// Wait with context cancellation support
 		select {
 		case <-time.After(5 * time.Second):
@@ -102,7 +102,7 @@ func (c *ConnectionImpl) EnsureConnection(ctx context.Context) {
 			fmt.Printf(" connection retry cancelled: %v\n", ctx.Err())
 			return
 		}
-		
+
 		fmt.Print(" reconnecting...")
 		c.reconnectWithRetry(ctx)
 		if c.conn != nil {
@@ -110,7 +110,7 @@ func (c *ConnectionImpl) EnsureConnection(ctx context.Context) {
 		}
 		retryCount++
 	}
-	
+
 	if err != nil && retryCount >= maxRetries {
 		fmt.Printf(" failed to reconnect after %d attempts: %v\n", maxRetries, err)
 	}
@@ -123,7 +123,7 @@ func (c *ConnectionImpl) reconnectWithRetry(ctx context.Context) {
 		fmt.Printf(" reconnection cancelled: %v\n", ctx.Err())
 		return
 	}
-	
+
 	// Create new connection
 	conn, err := pgx.Connect(ctx, c.config.ConnectionString())
 	if err != nil {
@@ -163,7 +163,7 @@ func (c *ConnectionImpl) GetDatabaseInfo(ctx context.Context) (*DatabaseInfo, er
 	var version string
 	err := c.conn.QueryRow(ctx, "SELECT version()").Scan(&version)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get PostgreSQL version from %s@%s:%d/%s: %w", 
+		return nil, fmt.Errorf("failed to get PostgreSQL version from %s@%s:%d/%s: %w",
 			c.config.User, c.config.Host, c.config.Port, c.config.Database, err)
 	}
 	info.Version = version

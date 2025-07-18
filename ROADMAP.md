@@ -41,6 +41,10 @@
 * **History integration**: Access previous SQL queries using arrow keys
 * **Multi-line editing**: Support for complex multi-line SQL queries with proper indentation
 
+---
+
+## P3 - Low Priority
+
 ### Performance optimizations
 * **Schema caching**: Cache database schema information to reduce repeated metadata queries
 * **Query result caching**: Implement optional caching for identical queries with configurable TTL

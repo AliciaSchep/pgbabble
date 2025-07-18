@@ -12,6 +12,20 @@ A CLI tool for interacting with PostgreSQL databases using natural language quer
 
 ## Usage
 
+### API Key Setup
+
+Before using pgbabble, you need to set up your Anthropic API key:
+
+```bash
+export ANTHROPIC_API_KEY=your_api_key_here
+```
+
+You can get an API key from [Anthropic's Console](https://console.anthropic.com/). 
+
+**Note**: Currently, pgbabble only supports Anthropic's Claude models. We have plans to support other model providers (OpenAI, local models, etc.) in the future, but this has not yet been implemented.
+
+### Connection Examples
+
 ```bash
 # Connect with URI
 pgbabble "postgresql://user:pass@localhost/mydb"

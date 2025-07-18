@@ -17,16 +17,18 @@ import (
 type Session struct {
 	conn       db.Connection
 	mode       string
+	model      string
 	rl         *readline.Instance
 	agent      *agent.Agent
 	agentReady bool
 }
 
 // NewSession creates a new chat session
-func NewSession(conn db.Connection, mode string) *Session {
+func NewSession(conn db.Connection, mode string, model string) *Session {
 	return &Session{
 		conn:       conn,
 		mode:       mode,
+		model:      model,
 		agentReady: false,
 	}
 }
@@ -185,7 +187,7 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 
 // initializeAgent sets up the LLM agent with schema tools
 func (s *Session) initializeAgent() {
-	agentClient, err := agent.NewAgent("", s.mode)
+	agentClient, err := agent.NewAgent("", s.mode, s.model)
 	if err != nil {
 		errors.UserInfo("LLM features not available: %v", err)
 		fmt.Println("   Set ANTHROPIC_API_KEY environment variable to enable AI features")

@@ -10,11 +10,14 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
+const DefaultModel = "claude-3-5-sonnet-20241022"
+
 type Agent struct {
 	client       *anthropic.Client
 	tools        []ToolDefinition
 	conversation []anthropic.MessageParam
 	mode         string
+	model        string
 }
 
 type ToolDefinition struct {
@@ -24,7 +27,7 @@ type ToolDefinition struct {
 	Function    func(input json.RawMessage) (string, error)
 }
 
-func NewAgent(apiKey string, mode string) (*Agent, error) {
+func NewAgent(apiKey string, mode string, model string) (*Agent, error) {
 	if apiKey == "" {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
@@ -39,6 +42,7 @@ func NewAgent(apiKey string, mode string) (*Agent, error) {
 		tools:        []ToolDefinition{},
 		conversation: []anthropic.MessageParam{},
 		mode:         mode,
+		model:        model,
 	}, nil
 }
 
@@ -148,7 +152,7 @@ func (a *Agent) runInference(ctx context.Context, conversation []anthropic.Messa
 	}
 
 	params := anthropic.MessageNewParams{
-		Model:     "claude-3-5-sonnet-20241022",
+		Model:     anthropic.Model(a.model),
 		MaxTokens: 4000,
 		System: []anthropic.TextBlockParam{
 			{Text: systemMessage},

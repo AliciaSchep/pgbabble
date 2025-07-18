@@ -6,9 +6,6 @@
 * **CSV export**: Add `/save` command to export current result set to CSV format
 * **File naming**: Smart default file naming with timestamps and query context, but option to give a file name `/save <path>`
 
-### Turn limiting
-* **Query flow control**: Prevent agent from doing two query or explain tool calls in a row without user input
-* **General limiting**: Set higher limit for number of consecutive tool calls
 
 ### Multi-provider LLM support
 * **Provider abstraction**: Create a unified interface for different LLM providers
@@ -22,6 +19,10 @@
 ---
 
 ## P2 - Medium Priority
+
+### Turn limiting
+* **Query flow control**: Harder restriction on agent calling tool right away after rejection
+* **General limiting**: Set a limit for number of consecutive tool calls
 
 ### Result limiting
 * **CLI argument**: Add ROWS_LIMIT argument that defaults to 1000 for number of rows to limit fetching

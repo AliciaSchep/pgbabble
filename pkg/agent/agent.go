@@ -58,13 +58,13 @@ func (a *Agent) generateSystemMessage() string {
 	switch a.mode {
 	case "default":
 		modeDescription = `IMPORTANT -- Running queries will display results to the user, but not share them with you.
-DO NOT MAKE UP results when talking with user. You can see schema information, table sizes, and query execution metadata, but NOT actual query result data. You can examine EXPLAIN query plans to help with optimization.
+DO NOT MAKE UP results when talking with user or imply that you can see actual query result data. You can see schema information, table sizes, and query execution metadata, but NOT actual query result data. You can examine EXPLAIN query plans to help with optimization.
 If the user asks for a result from a prior query, you should clarify that you cannot see the results, but that they can use the "/browse" command to view the results from last query
 or you can run the same or a modified query again for them to see the results.
 `
 	case "schema-only":
 		modeDescription = `IMPORTANT -- Running queries will display results to the user, but not share them with you.
-DO NOT MAKE UP results when talking with user. You can see schema information but NOT actual query result data, table sizes, or explain execution plans.
+DO NOT MAKE UP results when talking with user or imply that you can see actual query result data. You can see schema information but NOT actual query result data, table sizes, or explain execution plans.
 If the user asks for a result from a prior query, you should clarify that you cannot see the results, but that they can use the "/browse" command to view the results from last query
 or you can run the same or a modified query again for them to see the results.
 `

@@ -9,6 +9,7 @@ import (
 
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 	"github.com/AliciaSchep/pgbabble/pkg/display"
+	"github.com/AliciaSchep/pgbabble/pkg/errors"
 )
 
 // QueryTimeout is the default timeout for SQL query execution
@@ -469,14 +470,25 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 	fmt.Print("\r") // Clear the progress line
 
 	if err != nil {
+		fmt.Print("\r") // Clear progress line
+		
 		// Check for context cancellation and provide appropriate message
 		if queryCtx.Err() == context.Canceled {
+			errors.UserError("Query cancelled by user (Ctrl-C)")
 			return "", fmt.Errorf("query cancelled by user (Ctrl-C)")
 		}
 		if queryCtx.Err() == context.DeadlineExceeded {
+			errors.UserError("Query timed out after %v", QueryTimeout)
 			return "", fmt.Errorf("query timed out after %v - please check if your query is optimized or try adding LIMIT clause", QueryTimeout)
 		}
-		return "", fmt.Errorf("%s", formatDatabaseError(err))
+		
+		// Show concise error for technical users (without LLM instructions)
+		userErrorMsg := formatUserError(err)
+		errors.UserError("Query failed: %s", userErrorMsg)
+		
+		// Return LLM-friendly error message with tool instructions
+		llmErrorMsg := formatDatabaseError(err)
+		return "", fmt.Errorf("%s", llmErrorMsg)
 	}
 	defer rows.Close()
 
@@ -494,7 +506,10 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
-			return "", fmt.Errorf("%s", formatDatabaseError(err))
+			userErrorMsg := formatUserError(err)
+			errors.UserError("Error processing query results: %s", userErrorMsg)
+			llmErrorMsg := formatDatabaseError(err)
+			return "", fmt.Errorf("%s", llmErrorMsg)
 		}
 
 		// Make a copy of values to avoid reference issues
@@ -549,7 +564,10 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 	}
 
 	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("%s", formatDatabaseError(err))
+		userErrorMsg := formatUserError(err)
+		errors.UserError("Error during query result iteration: %s", userErrorMsg)
+		llmErrorMsg := formatDatabaseError(err)
+		return "", fmt.Errorf("%s", llmErrorMsg)
 	}
 
 	// Calculate execution time
@@ -727,7 +745,7 @@ func formatValue(value interface{}) string {
 	return fmt.Sprintf("%v", value)
 }
 
-// formatDatabaseError provides user-friendly error messages for common database errors
+// formatDatabaseError provides LLM-friendly error messages with tool instructions
 func formatDatabaseError(err error) string {
 	errStr := err.Error()
 
@@ -758,6 +776,39 @@ func formatDatabaseError(err error) string {
 
 	// Return original error if no specific pattern matches
 	return fmt.Sprintf("Database error: %v", err)
+}
+
+// formatUserError provides user-friendly error messages without LLM tool instructions
+func formatUserError(err error) string {
+	errStr := err.Error()
+
+	// Handle common PostgreSQL error patterns
+	if strings.Contains(errStr, "relation") && strings.Contains(errStr, "does not exist") {
+		return fmt.Sprintf("Table or view not found\n%v", err)
+	}
+
+	if strings.Contains(errStr, "column") && strings.Contains(errStr, "does not exist") {
+		return fmt.Sprintf("Column not found\n%v", err)
+	}
+
+	if strings.Contains(errStr, "syntax error") {
+		return fmt.Sprintf("SQL syntax error\n%v", err)
+	}
+
+	if strings.Contains(errStr, "permission denied") {
+		return fmt.Sprintf("Permission denied\n%v", err)
+	}
+
+	if strings.Contains(errStr, "connection") && (strings.Contains(errStr, "refused") || strings.Contains(errStr, "closed")) {
+		return fmt.Sprintf("Database connection issue\n%v", err)
+	}
+
+	if strings.Contains(errStr, "dial") || strings.Contains(errStr, "network") || strings.Contains(errStr, "timeout") {
+		return fmt.Sprintf("Network connectivity issue\n%v", err)
+	}
+
+	// Return original error if no specific pattern matches
+	return fmt.Sprintf("Database error\n%v", err)
 }
 
 // createExplainQueryTool creates a tool for analyzing query execution plans

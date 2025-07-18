@@ -83,7 +83,10 @@ func (c *ConnectionImpl) ListTables(ctx context.Context) ([]TableInfo, error) {
 		tables = append(tables, table)
 	}
 
-	return tables, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during table listing iteration: %w", err)
+	}
+	return tables, nil
 }
 
 // DescribeTable returns detailed information about a specific table
@@ -152,7 +155,7 @@ func (c *ConnectionImpl) getTableColumns(ctx context.Context, schema, tableName 
 
 	rows, err := c.Query(ctx, query, schema, tableName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query table columns: %w", err)
 	}
 	defer rows.Close()
 
@@ -161,7 +164,7 @@ func (c *ConnectionImpl) getTableColumns(ctx context.Context, schema, tableName 
 		var col ColumnInfo
 		err := rows.Scan(&col.Name, &col.DataType, &col.IsNullable, &col.Default, &col.Description)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan column info: %w", err)
 		}
 		columns = append(columns, col)
 	}
@@ -169,7 +172,7 @@ func (c *ConnectionImpl) getTableColumns(ctx context.Context, schema, tableName 
 	// Get primary key information
 	pkColumns, err := c.getPrimaryKeyColumns(ctx, schema, tableName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get primary keys: %w", err)
 	}
 
 	// Mark primary key columns
@@ -182,7 +185,10 @@ func (c *ConnectionImpl) getTableColumns(ctx context.Context, schema, tableName 
 		}
 	}
 
-	return columns, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during column iteration: %w", err)
+	}
+	return columns, nil
 }
 
 // getPrimaryKeyColumns returns the primary key column names for a table
@@ -201,7 +207,7 @@ func (c *ConnectionImpl) getPrimaryKeyColumns(ctx context.Context, schema, table
 
 	rows, err := c.Query(ctx, query, schema, tableName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query primary keys: %w", err)
 	}
 	defer rows.Close()
 
@@ -209,12 +215,15 @@ func (c *ConnectionImpl) getPrimaryKeyColumns(ctx context.Context, schema, table
 	for rows.Next() {
 		var col string
 		if err := rows.Scan(&col); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan primary key column: %w", err)
 		}
 		columns = append(columns, col)
 	}
 
-	return columns, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during primary key iteration: %w", err)
+	}
+	return columns, nil
 }
 
 // GetForeignKeys returns foreign key relationships for a table
@@ -299,5 +308,8 @@ func (c *ConnectionImpl) SearchColumns(ctx context.Context, pattern string) ([]C
 		columns = append(columns, col)
 	}
 
-	return columns, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during column search iteration: %w", err)
+	}
+	return columns, nil
 }

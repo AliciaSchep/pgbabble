@@ -84,7 +84,7 @@ func TestConnect_ConfigValidation(t *testing.T) {
 		if err == nil {
 			t.Error("Expected connection failure with nonexistent host")
 		}
-		if !contains(err.Error(), "failed to connect to database") {
+		if !contains(err.Error(), "failed to connect to PostgreSQL") {
 			t.Errorf("Expected connection failure error, got: %v", err)
 		}
 	})

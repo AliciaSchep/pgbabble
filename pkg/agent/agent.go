@@ -10,7 +10,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-// Agent implements the simple pattern from ampcode.com
 type Agent struct {
 	client       *anthropic.Client
 	tools        []ToolDefinition
@@ -18,7 +17,6 @@ type Agent struct {
 	mode         string
 }
 
-// ToolDefinition matches the ampcode.com pattern
 type ToolDefinition struct {
 	Name        string
 	Description string
@@ -26,7 +24,6 @@ type ToolDefinition struct {
 	Function    func(input json.RawMessage) (string, error)
 }
 
-// NewAgent creates a new agent following the ampcode.com pattern
 func NewAgent(apiKey string, mode string) (*Agent, error) {
 	if apiKey == "" {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
@@ -106,7 +103,6 @@ Use a conversational tone, do not mention specific tool names.
 Do NOT provide raw SQL in text. Use execute_sql tool for all query execution.`, modeDescription)
 }
 
-// SendMessage sends a message and handles tool calling (simplified from the ampcode.com pattern)
 func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, error) {
 	// Add user message to conversation history
 	a.conversation = append(a.conversation, anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)))
@@ -144,7 +140,6 @@ func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, er
 	}
 }
 
-// runInference makes the API call (from ampcode.com pattern)
 func (a *Agent) runInference(ctx context.Context, conversation []anthropic.MessageParam, systemMessage string) (*anthropic.Message, error) {
 	// Convert tools to Anthropic format
 	anthropicTools := make([]anthropic.ToolUnionParam, len(a.tools))
@@ -165,10 +160,13 @@ func (a *Agent) runInference(ctx context.Context, conversation []anthropic.Messa
 		params.Tools = anthropicTools
 	}
 
-	return a.client.Messages.New(ctx, params)
+	message, err := a.client.Messages.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Anthropic API: %w", err)
+	}
+	return message, nil
 }
 
-// executeTool executes a tool (adapted from ampcode.com pattern for current SDK)
 func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
 	var toolDef ToolDefinition
 	var found bool

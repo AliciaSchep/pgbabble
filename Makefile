@@ -1,4 +1,4 @@
-.PHONY: build test clean install help test-db-start test-db-stop test-db-reset test-db-seed test-with-db
+.PHONY: build test clean install help test-db-start test-db-stop test-db-reset test-db-seed
 
 BINARY_NAME=pgbabble
 BUILD_DIR=./build

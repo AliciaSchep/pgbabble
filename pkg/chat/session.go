@@ -9,6 +9,7 @@ import (
 	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 	"github.com/AliciaSchep/pgbabble/pkg/display"
+	"github.com/AliciaSchep/pgbabble/pkg/errors"
 	"github.com/chzyer/readline"
 )
 
@@ -42,7 +43,7 @@ func (s *Session) Start(ctx context.Context) error {
 	}
 	defer func() {
 		if err := rl.Close(); err != nil {
-			fmt.Printf("Warning: failed to close readline: %v\n", err)
+			errors.ConnectionWarning("failed to close readline: %v", err)
 		}
 	}()
 
@@ -73,14 +74,14 @@ func (s *Session) Start(ctx context.Context) error {
 		// Handle commands
 		if strings.HasPrefix(line, "/") {
 			if err := s.handleCommand(ctx, line); err != nil {
-				fmt.Printf("Error: %v\n", err)
+				errors.UserError("%v", err)
 			}
 			continue
 		}
 
 		// Handle natural language queries
 		if err := s.handleQuery(ctx, line); err != nil {
-			fmt.Printf("Error: %v\n", err)
+			errors.UserError("%v", err)
 		}
 	}
 
@@ -169,7 +170,7 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 	// Send query to LLM agent
 	response, err := s.agent.SendMessage(ctx, query)
 	if err != nil {
-		fmt.Printf("❌ Error getting response from AI: %v\n", err)
+		errors.APIError("AI service", err)
 		return nil
 	}
 
@@ -186,7 +187,7 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 func (s *Session) initializeAgent() {
 	agentClient, err := agent.NewAgent("", s.mode)
 	if err != nil {
-		fmt.Printf("ℹ️  LLM features not available: %v\n", err)
+		errors.UserInfo("LLM features not available: %v", err)
 		fmt.Println("   Set ANTHROPIC_API_KEY environment variable to enable AI features")
 		fmt.Println()
 		return
@@ -225,7 +226,7 @@ func (s *Session) getUserApproval(queryInfo string) bool {
 
 	response, err := s.rl.Readline()
 	if err != nil {
-		fmt.Printf("Error reading input: %v\n", err)
+		errors.UserError("error reading input: %v", err)
 		// Reset prompt back to normal
 		s.rl.SetPrompt("pgbabble> ")
 		return false

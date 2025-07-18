@@ -7,6 +7,7 @@ import (
 	"github.com/AliciaSchep/pgbabble/internal/testutil"
 )
 
+
 func TestListTables_WithRealDatabase(t *testing.T) {
 	cfg := testutil.GetRealDatabaseConfig()
 	if cfg == nil {
@@ -22,18 +23,8 @@ func TestListTables_WithRealDatabase(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
-		return conn.Exec(ctx, sql)
-	}); err != nil {
-		t.Fatalf("Failed to setup test schema: %v", err)
-	}
-	defer func() {
-		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
-			return conn.Exec(ctx, sql)
-		}); err != nil {
-			t.Logf("Warning: Failed to cleanup test schema: %v", err)
-		}
-	}()
+	// Database should already be seeded with test schema and data
+	// by the make test-db-seed step
 
 	tables, err := conn.ListTables(ctx)
 	if err != nil {
@@ -81,18 +72,8 @@ func TestDescribeTable_WithRealDatabase(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
-		return conn.Exec(ctx, sql)
-	}); err != nil {
-		t.Fatalf("Failed to setup test schema: %v", err)
-	}
-	defer func() {
-		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
-			return conn.Exec(ctx, sql)
-		}); err != nil {
-			t.Logf("Warning: Failed to cleanup test schema: %v", err)
-		}
-	}()
+	// Database should already be seeded with test schema and data
+	// by the make test-db-seed step
 
 	t.Run("test_users_table", func(t *testing.T) {
 		table, err := conn.DescribeTable(ctx, "public", "test_users")
@@ -164,18 +145,8 @@ func TestGetForeignKeys_WithRealDatabase(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
-		return conn.Exec(ctx, sql)
-	}); err != nil {
-		t.Fatalf("Failed to setup test schema: %v", err)
-	}
-	defer func() {
-		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
-			return conn.Exec(ctx, sql)
-		}); err != nil {
-			t.Logf("Warning: Failed to cleanup test schema: %v", err)
-		}
-	}()
+	// Database should already be seeded with test schema and data
+	// by the make test-db-seed step
 
 	t.Run("test_orders_foreign_keys", func(t *testing.T) {
 		fks, err := conn.GetForeignKeys(ctx, "public", "test_orders")
@@ -263,18 +234,8 @@ func TestSearchColumns_WithRealDatabase(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := testutil.SetupTestSchema(ctx, func(ctx context.Context, sql string) error {
-		return conn.Exec(ctx, sql)
-	}); err != nil {
-		t.Fatalf("Failed to setup test schema: %v", err)
-	}
-	defer func() {
-		if err := testutil.CleanupTestSchema(ctx, func(ctx context.Context, sql string) error {
-			return conn.Exec(ctx, sql)
-		}); err != nil {
-			t.Logf("Warning: Failed to cleanup test schema: %v", err)
-		}
-	}()
+	// Database should already be seeded with test schema and data
+	// by the make test-db-seed step
 
 	t.Run("search_for_id_columns", func(t *testing.T) {
 		columns, err := conn.SearchColumns(ctx, "id")

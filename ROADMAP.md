@@ -1,34 +1,5 @@
 # PGBabble Roadmap
 
-## Priority Levels
-- **P0 (Critical)**: Core functionality improvements needed for stability and basic usability
-- **P1 (High)**: Important features that significantly improve user experience
-- **P2 (Medium)**: Nice-to-have features that add value but aren't essential
-
----
-
-## P0 - Critical Priority
-
-### Improved Testing
-* **Coverage analysis**: Use coverage tools to identify untested code paths and aim for >80% coverage
-* **Test quality review**: Review current tests to identify areas of improvement and test reliability
-* **Integration tests**: Add end-to-end tests that verify complete workflows with real databases
-* **Unit test expansion**: Increase unit test coverage for core modules (agent, chat, db, display)
-* **Error scenario testing**: Add tests for edge cases, connection failures, and malformed queries
-* **Performance testing**: Add benchmarks for query processing and result formatting
-* **LLM interaction mocking**: Create robust mocks for LLM interactions to ensure deterministic testing
-
-### Error handling & recovery
-* **Connection resilience**: Implement automatic reconnection on database connection loss
-* **Graceful degradation**: Handle LLM API failures with fallback options or manual mode
-* **User-friendly error messages**: Convert technical database errors into helpful guidance
-* **Query validation**: Pre-validate SQL before execution to catch syntax errors early
-* **Timeout handling**: Implement configurable timeouts for long-running queries with cancellation
-* **Transaction safety**: Ensure proper transaction rollback on errors
-* **Network error recovery**: Handle network interruptions gracefully with retry mechanisms
-
----
-
 ## P1 - High Priority
 
 ### Add option to save results

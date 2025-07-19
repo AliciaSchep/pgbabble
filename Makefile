@@ -16,11 +16,11 @@ all: build
 
 # Build the binary
 build:
-	go build -o $(BINARY_NAME) $(MAIN_PATH)
+	go build -ldflags="-X main.version=dev -X main.commit=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) -X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o $(BINARY_NAME) $(MAIN_PATH)
 
 # Build with optimizations for release
 build-release:
-	CGO_ENABLED=0 go build -ldflags="-w -s" -o $(BINARY_NAME) $(MAIN_PATH)
+	CGO_ENABLED=0 go build -ldflags="-w -s -X main.version=$$(git describe --tags --always 2>/dev/null || echo dev) -X main.commit=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) -X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o $(BINARY_NAME) $(MAIN_PATH)
 
 # Run tests
 test:

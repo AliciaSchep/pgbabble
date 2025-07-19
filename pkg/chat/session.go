@@ -449,9 +449,9 @@ func (s *Session) saveLastResults(ctx context.Context, filename string) error {
 	}
 
 	fmt.Printf("✅ Results saved to: %s\n", savedPath)
-	fmt.Printf("📊 Exported %d rows with %d columns\n", 
-		len(agent.LastQueryResult.AllRows), 
+	fmt.Printf("📊 Exported %d rows with %d columns\n",
+		len(agent.LastQueryResult.AllRows),
 		len(agent.LastQueryResult.ColumnNames))
-	
+
 	return nil
 }

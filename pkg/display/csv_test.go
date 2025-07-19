@@ -63,7 +63,7 @@ func TestSaveCSV(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filename := filepath.Join(tempDir, tt.filename)
-			
+
 			err := SaveCSV(tt.columnNames, tt.rows, filename)
 			if err != nil {
 				t.Fatalf("SaveCSV failed: %v", err)
@@ -84,22 +84,22 @@ func TestSaveCSV(t *testing.T) {
 
 func TestGenerateDefaultCSVFilename(t *testing.T) {
 	filename := GenerateDefaultCSVFilename()
-	
+
 	// Check that it has the expected prefix and suffix
 	if !strings.HasPrefix(filename, "pgbabble_results_") {
 		t.Errorf("Expected filename to start with 'pgbabble_results_', got: %s", filename)
 	}
-	
+
 	if !strings.HasSuffix(filename, ".csv") {
 		t.Errorf("Expected filename to end with '.csv', got: %s", filename)
 	}
-	
+
 	// Check that it contains a timestamp-like string
 	parts := strings.Split(filename, "_")
 	if len(parts) < 3 {
 		t.Errorf("Expected filename to have timestamp format, got: %s", filename)
 	}
-	
+
 	// Verify the timestamp portion is reasonable (should be current time)
 	timestampPart := strings.TrimSuffix(strings.Join(parts[2:], "_"), ".csv")
 	if len(timestampPart) != 19 { // YYYY-MM-DD_HH-mm-ss format
@@ -135,7 +135,7 @@ func TestFormatValueForCSV(t *testing.T) {
 
 func TestSaveQueryResultToCSV(t *testing.T) {
 	tempDir := t.TempDir()
-	
+
 	columnNames := []string{"id", "name", "status"}
 	rows := [][]interface{}{
 		{1, "Alice", true},
@@ -203,12 +203,12 @@ func TestSaveQueryResultToCSV(t *testing.T) {
 func TestSaveCSVError(t *testing.T) {
 	// Test with invalid path (directory that doesn't exist)
 	invalidPath := "/nonexistent/directory/test.csv"
-	
+
 	err := SaveCSV([]string{"col1"}, [][]interface{}{{"data"}}, invalidPath)
 	if err == nil {
 		t.Error("Expected error when saving to invalid path, but got none")
 	}
-	
+
 	if !strings.Contains(err.Error(), "failed to create file") {
 		t.Errorf("Expected error message about file creation, got: %v", err)
 	}

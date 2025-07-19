@@ -41,6 +41,9 @@ pgbabble
 
 # Specify data sharing mode (optional)
 pgbabble --mode schema-only "postgresql://user:pass@localhost/mydb"
+
+# specify model (optional)
+pgbabble --model laude-sonnet-4-0` "postgresql://user:pass@localhost/mydb"
 ```
 
 ## Privacy Modes

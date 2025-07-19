@@ -24,7 +24,7 @@ func NewDBConfigFromURI(uri string) (*DBConfig, error) {
 	if uri == "" {
 		return nil, fmt.Errorf("URI cannot be empty")
 	}
-	
+
 	if len(uri) > 2048 {
 		return nil, fmt.Errorf("URI too long (max 2048 characters)")
 	}

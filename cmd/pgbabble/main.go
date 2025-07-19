@@ -14,7 +14,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func getVersionString() string {
+	if commit != "unknown" && buildDate != "unknown" {
+		return fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, buildDate)
+	}
+	return version
+}
+
 var (
+	// Version information (set at build time)
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = "unknown"
+
 	// Database connection flags
 	host     string
 	port     int
@@ -39,8 +51,9 @@ Examples:
   pgbabble --model claude-sonnet-4-0 "postgresql://user:pass@localhost/mydb"
   pgbabble --model claude-3-5-haiku-latest --host localhost --dbname mydb
   export PGHOST=localhost PGUSER=myuser PGDATABASE=mydb && pgbabble`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runPGBabble,
+	Args:    cobra.MaximumNArgs(1),
+	Version: getVersionString(),
+	RunE:    runPGBabble,
 }
 
 func init() {

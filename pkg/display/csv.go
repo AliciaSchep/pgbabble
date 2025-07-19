@@ -2,6 +2,7 @@ package display
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,10 +10,39 @@ import (
 	"time"
 )
 
+// validateFilePath validates that the filename is safe and doesn't contain path traversal attempts
+func validateFilePath(filename string) error {
+	// Clean the path to resolve any relative components
+	cleanPath := filepath.Clean(filename)
+	
+	// Check for path traversal attempts
+	if strings.Contains(cleanPath, "..") {
+		return errors.New("path traversal detected: filename cannot contain '..'")
+	}
+	
+	// Check for absolute paths that might escape the current directory
+	if filepath.IsAbs(cleanPath) {
+		// Allow absolute paths but warn that they should be used carefully
+		// In a production environment, you might want to restrict this further
+	}
+	
+	// Check for empty filename
+	if cleanPath == "" || cleanPath == "." {
+		return errors.New("invalid filename: cannot be empty or current directory")
+	}
+	
+	return nil
+}
+
 // SaveCSV saves query results to a CSV file
 func SaveCSV(columnNames []string, allRows [][]interface{}, filename string) error {
+	// Validate the file path for security
+	if err := validateFilePath(filename); err != nil {
+		return fmt.Errorf("invalid file path: %w", err)
+	}
+	
 	// Create the output file
-	file, err := os.Create(filename)
+	file, err := os.Create(filepath.Clean(filename))
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", filename, err)
 	}
@@ -82,14 +112,22 @@ func SaveQueryResultToCSV(columnNames []string, allRows [][]interface{}, filenam
 		filename += ".csv"
 	}
 
+	// Validate the file path for security (after processing filename)
+	if err := validateFilePath(filename); err != nil {
+		return "", fmt.Errorf("invalid file path: %w", err)
+	}
+
+	// Clean the filename
+	cleanFilename := filepath.Clean(filename)
+
 	// Get absolute path for display
-	absPath, err := filepath.Abs(filename)
+	absPath, err := filepath.Abs(cleanFilename)
 	if err != nil {
-		absPath = filename // fallback to relative path
+		absPath = cleanFilename // fallback to relative path
 	}
 
 	// Save the CSV
-	if err := SaveCSV(columnNames, allRows, filename); err != nil {
+	if err := SaveCSV(columnNames, allRows, cleanFilename); err != nil {
 		return "", err
 	}
 

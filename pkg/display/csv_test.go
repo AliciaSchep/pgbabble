@@ -200,16 +200,150 @@ func TestSaveQueryResultToCSV(t *testing.T) {
 	}
 }
 
+func TestValidateFilePath(t *testing.T) {
+	tests := []struct {
+		name        string
+		filename    string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid_simple_filename",
+			filename:    "results.csv",
+			expectError: false,
+		},
+		{
+			name:        "valid_filename_with_path",
+			filename:    "data/results.csv",
+			expectError: false,
+		},
+		{
+			name:        "valid_absolute_path",
+			filename:    "/tmp/results.csv",
+			expectError: false,
+		},
+		{
+			name:        "path_traversal_attack",
+			filename:    "../../../etc/passwd",
+			expectError: true,
+			errorMsg:    "path traversal detected",
+		},
+		{
+			name:        "path_traversal_with_csv",
+			filename:    "../../../tmp/malicious.csv",
+			expectError: true,
+			errorMsg:    "path traversal detected",
+		},
+		{
+			name:        "current_directory",
+			filename:    ".",
+			expectError: true,
+			errorMsg:    "invalid filename",
+		},
+		{
+			name:        "empty_filename",
+			filename:    "",
+			expectError: true,
+			errorMsg:    "invalid filename",
+		},
+		{
+			name:        "relative_path_with_dots",
+			filename:    "./results.csv",
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateFilePath(tt.filename)
+			
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for filename %q, but got none", tt.filename)
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error message to contain %q, got: %v", tt.errorMsg, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error for filename %q, but got: %v", tt.filename, err)
+				}
+			}
+		})
+	}
+}
+
 func TestSaveCSVError(t *testing.T) {
-	// Test with invalid path (directory that doesn't exist)
-	invalidPath := "/nonexistent/directory/test.csv"
+	t.Run("invalid_path_traversal", func(t *testing.T) {
+		// Test path traversal protection
+		maliciousPath := "../../../etc/passwd"
+		
+		err := SaveCSV([]string{"col1"}, [][]interface{}{{"data"}}, maliciousPath)
+		if err == nil {
+			t.Error("Expected error for path traversal attempt, but got none")
+		}
+		
+		if !strings.Contains(err.Error(), "path traversal detected") {
+			t.Errorf("Expected path traversal error, got: %v", err)
+		}
+	})
 
-	err := SaveCSV([]string{"col1"}, [][]interface{}{{"data"}}, invalidPath)
-	if err == nil {
-		t.Error("Expected error when saving to invalid path, but got none")
+	t.Run("nonexistent_directory", func(t *testing.T) {
+		// Test with invalid path (directory that doesn't exist)
+		invalidPath := "/nonexistent/directory/test.csv"
+		
+		err := SaveCSV([]string{"col1"}, [][]interface{}{{"data"}}, invalidPath)
+		if err == nil {
+			t.Error("Expected error when saving to invalid path, but got none")
+		}
+		
+		if !strings.Contains(err.Error(), "failed to create file") {
+			t.Errorf("Expected error message about file creation, got: %v", err)
+		}
+	})
+
+	t.Run("empty_filename", func(t *testing.T) {
+		err := SaveCSV([]string{"col1"}, [][]interface{}{{"data"}}, "")
+		if err == nil {
+			t.Error("Expected error for empty filename, but got none")
+		}
+		
+		if !strings.Contains(err.Error(), "invalid filename") {
+			t.Errorf("Expected invalid filename error, got: %v", err)
+		}
+	})
+}
+
+func TestSaveQueryResultToCSVSecurity(t *testing.T) {
+	columnNames := []string{"id", "name"}
+	rows := [][]interface{}{
+		{1, "Alice"},
+		{2, "Bob"},
 	}
 
-	if !strings.Contains(err.Error(), "failed to create file") {
-		t.Errorf("Expected error message about file creation, got: %v", err)
-	}
+	t.Run("path_traversal_protection", func(t *testing.T) {
+		maliciousPath := "../../../etc/passwd"
+		
+		_, err := SaveQueryResultToCSV(columnNames, rows, maliciousPath)
+		if err == nil {
+			t.Error("Expected error for path traversal attempt, but got none")
+		}
+		
+		if !strings.Contains(err.Error(), "path traversal detected") {
+			t.Errorf("Expected path traversal error, got: %v", err)
+		}
+	})
+
+	t.Run("path_traversal_with_csv_extension", func(t *testing.T) {
+		// Test that adding .csv extension doesn't bypass validation
+		maliciousPath := "../../../tmp/malicious"  // .csv will be added automatically
+		
+		_, err := SaveQueryResultToCSV(columnNames, rows, maliciousPath)
+		if err == nil {
+			t.Error("Expected error for path traversal attempt, but got none")
+		}
+		
+		if !strings.Contains(err.Error(), "path traversal detected") {
+			t.Errorf("Expected path traversal error, got: %v", err)
+		}
+	})
 }

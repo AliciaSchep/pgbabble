@@ -22,6 +22,8 @@ jobs:
     name: GoReleaser
     runs-on: ubuntu-latest
     needs: [test, security]
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v4
       with:

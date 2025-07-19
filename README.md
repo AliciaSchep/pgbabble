@@ -12,7 +12,7 @@ A CLI tool for interacting with PostgreSQL databases using natural language quer
 
 ## Usage
 
-### API Key Setup
+### API Key Setup & model selection
 
 Before using pgbabble, you need to set up your Anthropic API key:
 
@@ -20,9 +20,11 @@ Before using pgbabble, you need to set up your Anthropic API key:
 export ANTHROPIC_API_KEY=your_api_key_here
 ```
 
-You can get an API key from [Anthropic's Console](https://console.anthropic.com/). 
+You can get an API key from [Anthropic's Console](https://console.anthropic.com/).
 
 **Note**: Currently, pgbabble only supports Anthropic's Claude models. We have plans to support other model providers (OpenAI, local models, etc.) in the future, but this has not yet been implemented.
+
+The model can be specified using the `--model` flag with a valid anthropic model alias like `claude-sonnet-4-0`. The default is `claude-3-7-sonnet-latest`.
 
 ### Connection Examples
 
@@ -45,32 +47,18 @@ pgbabble --mode schema-only "postgresql://user:pass@localhost/mydb"
 
 PGBabble offers three privacy modes to control what information is shared with the LLM:
 
-### `default` (default mode)
-- ✅ **Schema information** (table names, column names, types)
-- ✅ **EXPLAIN query plans** (for query optimization)
-- ✅ **Table size estimates** (approximate row counts)
-- ✅ **Query execution metadata** (row counts, execution time)
-- ❌ **Actual query result data**
+| Data Type | `schema-only` | `default` | `share-results` |
+|-----------|:-------------:|:---------:|:---------------:|
+| **Schema information** (table names, column names, types) | ✅ | ✅ | ✅ |
+| **EXPLAIN query plans** (for optimization) | ❌ | ✅ | ✅ |
+| **Table size estimates** (approximate row counts) | ❌ | ✅ | ✅ |
+| **Query execution metadata** (row counts, execution time) | ❌ | ✅ | ✅ |
+| **Actual query result data** (limited to 50 rows) | ❌ | ❌ | ✅ |
 
-*Best for: General database exploration and query development with privacy protection*
-
-### `schema-only` (maximum privacy)
-- ✅ **Schema information** (table names, column names, types)
-- ❌ **EXPLAIN query plans** (execution details hidden)
-- ❌ **Table size estimates** (size information hidden)
-- ❌ **Query execution metadata** (minimal feedback)
-- ❌ **Actual query result data**
-
-*Best for: Highly sensitive databases where even table size and query result counts should not be shared*
-
-### `share-results` (full access)
-- ✅ **Schema information** (table names, column names, types)
-- ✅ **EXPLAIN query plans** (for query optimization)
-- ✅ **Table size estimates** (approximate row counts)
-- ✅ **Query execution metadata** (row counts, execution time)
-- ✅ **Actual query result data** (limited to 50 rows per query)
-
-*Best for: Development/testing environments where full data access is acceptable*
+**Best use cases:**
+- **`schema-only`**: Highly sensitive databases where even table sizes should not be shared
+- **`default`**: General database exploration and query development with privacy protection  
+- **`share-results`**: Development/testing environments where full data access is acceptable
 
 ### Example Usage
 ```bash
@@ -137,6 +125,7 @@ pgbabble> Can you provide a summary of all colors and how many parts they are us
 ```
 pgbabble> /help              # Show all available commands
 pgbabble> /browse            # Browse last query results in full
+pgbabble> /save [filename]   # Save last query results to CSV file
 pgbabble> /schema            # Database overview
 pgbabble> /tables            # List all tables
 pgbabble> /describe <table>  # Detailed table structure
@@ -149,6 +138,8 @@ pgbabble> /mode              # Show privacy mode
 3. Type `/browse` to explore all results in the `less` pager
 4. Use standard `less` navigation (space, arrows, search with `/pattern`)
 5. Press 'q' to return to the pgbabble prompt
+6. Type `/save` to export results to CSV file with default filename
+7. Or use `/save my_analysis.csv` to specify a custom filename
 
 ## Development
 

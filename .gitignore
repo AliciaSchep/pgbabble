@@ -19,3 +19,7 @@ vendor/
 
 # Go workspace file
 go.work
+
+# Test files
+lego.sql
+pgbabble_results_*.csv

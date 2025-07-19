@@ -142,6 +142,13 @@ func (s *Session) handleCommand(ctx context.Context, cmd string) error {
 		}
 		return nil
 
+	case "/save":
+		var filename string
+		if len(parts) > 1 {
+			filename = parts[1]
+		}
+		return s.saveLastResults(ctx, filename)
+
 	case "/browse", "/b":
 		return s.browseLastResults(ctx)
 
@@ -251,6 +258,7 @@ func (s *Session) showHelp() {
 	fmt.Println("  /describe <table>  Describe a specific table")
 	fmt.Println("  /mode, /m          Show current data exposure mode")
 	fmt.Println("  /clear, /c         Clear conversation history")
+	fmt.Println("  /save [filename]   Save last query results to CSV file")
 	fmt.Println("  /browse, /b        Browse last query results in less pager")
 	fmt.Println()
 	fmt.Println("Or just type a natural language question about your data!")
@@ -415,4 +423,35 @@ func (s *Session) browseLastResults(ctx context.Context) error {
 
 	// Open in less
 	return display.PageWithContext(ctx, title, fullContent)
+}
+
+// saveLastResults saves the last query results to a CSV file
+func (s *Session) saveLastResults(ctx context.Context, filename string) error {
+	if agent.LastQueryResult == nil {
+		fmt.Println("❌ No query results available to save")
+		fmt.Println("💡 Run a query first, then use /save to export results")
+		return nil
+	}
+
+	if len(agent.LastQueryResult.AllRows) == 0 {
+		fmt.Println("❌ Last query returned no results to save")
+		return nil
+	}
+
+	// Save to CSV
+	savedPath, err := display.SaveQueryResultToCSV(
+		agent.LastQueryResult.ColumnNames,
+		agent.LastQueryResult.AllRows,
+		filename,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to save CSV file: %w", err)
+	}
+
+	fmt.Printf("✅ Results saved to: %s\n", savedPath)
+	fmt.Printf("📊 Exported %d rows with %d columns\n",
+		len(agent.LastQueryResult.AllRows),
+		len(agent.LastQueryResult.ColumnNames))
+
+	return nil
 }

@@ -1,11 +1,4 @@
-# PGBabble Roadmap
-
-## P1 - High Priority
-
-### Add option to save results
-* **CSV export**: Add `/save` command to export current result set to CSV format
-* **File naming**: Smart default file naming with timestamps and query context, but option to give a file name `/save <path>`
-
+#  Features that might be added
 
 ### Multi-provider LLM support
 * **Provider abstraction**: Create a unified interface for different LLM providers
@@ -15,10 +8,6 @@
 * **Fallback providers**: Support multiple providers with automatic fallback on failures
 * **Model selection**: Allow users to choose specific models within a provider
 * **Cost optimization**: Track token usage and costs across different providers
-
----
-
-## P2 - Medium Priority
 
 ### Turn limiting
 * **Query flow control**: Harder restriction on agent calling tool right away after rejection
@@ -41,10 +30,6 @@
 * **Schema-aware completion**: Context-aware suggestions based on current database schema
 * **History integration**: Access previous SQL queries using arrow keys
 * **Multi-line editing**: Support for complex multi-line SQL queries with proper indentation
-
----
-
-## P3 - Low Priority
 
 ### Performance optimizations
 * **Schema caching**: Cache database schema information to reduce repeated metadata queries

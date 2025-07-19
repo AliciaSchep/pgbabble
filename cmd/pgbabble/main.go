@@ -100,8 +100,7 @@ func runPGBabble(cmd *cobra.Command, args []string) error {
 	}
 
 	// Connect to database
-	fmt.Printf("Connecting to PostgreSQL database: %s@%s:%d/%s\n",
-		dbConfig.User, dbConfig.Host, dbConfig.Port, dbConfig.Database)
+	fmt.Printf("Connecting to PostgreSQL database: %s\n", dbConfig.MaskedURI())
 
 	conn, err := db.Connect(ctx, dbConfig)
 	if err != nil {

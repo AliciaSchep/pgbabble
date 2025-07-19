@@ -19,7 +19,7 @@ func main() {
 		log.Fatal("❌ No test database configuration found. Please set PGBABBLE_TEST_* environment variables.")
 	}
 
-	fmt.Printf("📡 Connecting to test database: %s@%s:%d/%s\n", cfg.User, cfg.Host, cfg.Port, cfg.Database)
+	fmt.Printf("📡 Connecting to test database: %s\n", cfg.MaskedURI())
 
 	// Connect to the database with retries
 	ctx := context.Background()

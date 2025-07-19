@@ -409,3 +409,76 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestMaskedURI(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *DBConfig
+		expected string
+	}{
+		{
+			name: "with password and default port",
+			config: &DBConfig{
+				Host:     "localhost",
+				Port:     5432,
+				User:     "testuser",
+				Password: "secret123",
+				Database: "testdb",
+				SSLMode:  "prefer",
+			},
+			expected: "postgresql://testuser:***@localhost/testdb",
+		},
+		{
+			name: "without password",
+			config: &DBConfig{
+				Host:     "localhost",
+				Port:     5432,
+				User:     "testuser",
+				Database: "testdb",
+				SSLMode:  "require",
+			},
+			expected: "postgresql://testuser@localhost/testdb?sslmode=require",
+		},
+		{
+			name: "with custom port",
+			config: &DBConfig{
+				Host:     "example.com",
+				Port:     5433,
+				User:     "user",
+				Password: "secret",
+				Database: "mydb",
+				SSLMode:  "disable",
+			},
+			expected: "postgresql://user:***@example.com:5433/mydb?sslmode=disable",
+		},
+		{
+			name: "no user",
+			config: &DBConfig{
+				Host:     "localhost",
+				Port:     5432,
+				Database: "testdb",
+			},
+			expected: "postgresql://localhost/testdb",
+		},
+		{
+			name: "empty password",
+			config: &DBConfig{
+				Host:     "example.com",
+				Port:     5433,
+				User:     "user",
+				Password: "",
+				Database: "mydb",
+			},
+			expected: "postgresql://user@example.com:5433/mydb",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.config.MaskedURI()
+			if result != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}

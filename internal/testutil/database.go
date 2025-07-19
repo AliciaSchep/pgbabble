@@ -19,8 +19,8 @@ type TestDatabase struct {
 func NewTestDatabase(ctx context.Context, t *testing.T) (*TestDatabase, error) {
 	// Try environment variables first (for CI or local development)
 	if envConfig := tryEnvironmentConfig(); envConfig != nil {
-		t.Logf("Using environment-configured test database: %s@%s:%d/%s",
-			envConfig.User, envConfig.Host, envConfig.Port, envConfig.Database)
+		t.Logf("Using environment-configured test database: %s",
+			envConfig.MaskedURI())
 
 		testDB := &TestDatabase{
 			Config: envConfig,

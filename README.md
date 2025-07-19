@@ -2,7 +2,7 @@
 
 An interactive CLI tool for exploring PostgreSQL databases using natural language while maintaining data privacy (sharing query results with LLM is disabled by default) and ensuring quality and transparency (queries get reviewed & approved before actually being run). 
 
-Run `pgbabble "postgresql://user:pass@localhost/mydb"` to open up an interactive chat window!
+Run `pgbabble "postgresql://user:pass@localhost/mydb"` to open up an interactive chat window to explore your data!
 
 ## Features
 

@@ -80,8 +80,6 @@ or you can run the same or a modified query again for them to see the results.
 
 %s
 
-The user can change this mode by restarting the session with a different --mode flag, but cannot change it during this session.
-
 CRITICAL: You MUST use the available tools to interact with the database. Never just describe SQL - always use tools.
 
 Available tools:

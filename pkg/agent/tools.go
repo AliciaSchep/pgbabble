@@ -471,7 +471,7 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 
 	if err != nil {
 		fmt.Print("\r") // Clear progress line
-		
+
 		// Check for context cancellation and provide appropriate message
 		if queryCtx.Err() == context.Canceled {
 			errors.UserError("Query cancelled by user (Ctrl-C)")
@@ -481,11 +481,11 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 			errors.UserError("Query timed out after %v", QueryTimeout)
 			return "", fmt.Errorf("query timed out after %v - please check if your query is optimized or try adding LIMIT clause", QueryTimeout)
 		}
-		
+
 		// Show concise error for technical users (without LLM instructions)
 		userErrorMsg := formatUserError(err)
 		errors.UserError("Query failed: %s", userErrorMsg)
-		
+
 		// Return LLM-friendly error message with tool instructions
 		llmErrorMsg := formatDatabaseError(err)
 		return "", fmt.Errorf("%s", llmErrorMsg)

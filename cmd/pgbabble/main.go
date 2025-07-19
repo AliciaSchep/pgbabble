@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/chat"
 	"github.com/AliciaSchep/pgbabble/pkg/config"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
@@ -22,7 +23,8 @@ var (
 	database string
 
 	// Application flags
-	mode string
+	mode  string
+	model string
 )
 
 var rootCmd = &cobra.Command{
@@ -34,6 +36,8 @@ It converts your questions into SQL queries and executes them safely.
 Examples:
   pgbabble "postgresql://user:pass@localhost/mydb"
   pgbabble --host localhost --user myuser --dbname mydb
+  pgbabble --model claude-sonnet-4-0 "postgresql://user:pass@localhost/mydb"
+  pgbabble --model claude-3-5-haiku-latest --host localhost --dbname mydb
   export PGHOST=localhost PGUSER=myuser PGDATABASE=mydb && pgbabble`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runPGBabble,
@@ -49,6 +53,7 @@ func init() {
 
 	// Application flags
 	rootCmd.Flags().StringVar(&mode, "mode", "default", "Data exposure mode: default, schema-only, share-results")
+	rootCmd.Flags().StringVar(&model, "model", agent.DefaultModel, "Claude model to use (e.g., claude-sonnet-4-0, claude-3-5-haiku-latest)")
 }
 
 func runPGBabble(cmd *cobra.Command, args []string) error {
@@ -102,11 +107,12 @@ func runPGBabble(cmd *cobra.Command, args []string) error {
 	fmt.Printf("User: %s\n", dbInfo.User)
 	fmt.Printf("Version: %s\n", dbInfo.Version)
 	fmt.Printf("Mode: %s\n", mode)
+	fmt.Printf("Model: %s\n", model)
 	fmt.Println("Type /help for commands, /quit to exit")
 	fmt.Println()
 
 	// Start interactive chat with cancellable context
-	chatSession := chat.NewSession(conn, mode)
+	chatSession := chat.NewSession(conn, mode, model)
 	return chatSession.Start(ctx)
 }
 

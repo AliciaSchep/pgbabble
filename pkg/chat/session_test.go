@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -139,7 +140,7 @@ func TestNewSession(t *testing.T) {
 	var conn db.Connection
 	mode := "default"
 
-	session := NewSession(conn, mode)
+	session := NewSession(conn, mode, agent.DefaultModel)
 
 	if session.conn != conn {
 		t.Error("Expected connection to be set correctly")
@@ -160,7 +161,7 @@ func TestSession_ModeSpecificBehavior(t *testing.T) {
 
 	for _, mode := range modes {
 		t.Run("mode_"+mode, func(t *testing.T) {
-			session := NewSession(nil, mode)
+			session := NewSession(nil, mode, agent.DefaultModel)
 			if session.mode != mode {
 				t.Errorf("Expected mode %s, got %s", mode, session.mode)
 			}
@@ -175,7 +176,7 @@ func TestSession_ModeSpecificBehavior(t *testing.T) {
 }
 
 func TestSession_HandleCommand_UnknownCommand(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	err := session.handleCommand(ctx, "/unknown")
@@ -188,7 +189,7 @@ func TestSession_HandleCommand_UnknownCommand(t *testing.T) {
 }
 
 func TestSession_HandleCommand_Help(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	err := session.handleCommand(ctx, "/help")
@@ -203,7 +204,7 @@ func TestSession_HandleCommand_Help(t *testing.T) {
 }
 
 func TestSession_HandleCommand_ClearWhenNotReady(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 	session.agentReady = false
 
 	ctx := context.Background()
@@ -214,7 +215,7 @@ func TestSession_HandleCommand_ClearWhenNotReady(t *testing.T) {
 }
 
 func TestSession_HandleQuery_AgentNotReady(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 	session.agentReady = false
 	ctx := context.Background()
 
@@ -353,7 +354,7 @@ func TestSession_CommandParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("cmd_"+strings.ReplaceAll(tt.command, " ", "_"), func(t *testing.T) {
-			session := NewSession(nil, "default")
+			session := NewSession(nil, "default", agent.DefaultModel)
 			ctx := context.Background()
 
 			err := session.handleCommand(ctx, tt.command)
@@ -368,7 +369,7 @@ func TestSession_CommandParsing(t *testing.T) {
 }
 
 func TestSession_StateManagement(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 
 	// Test initial state
 	if session.agentReady {
@@ -393,7 +394,7 @@ func TestSession_ModeValidation(t *testing.T) {
 
 	for _, mode := range validModes {
 		t.Run("valid_mode_"+mode, func(t *testing.T) {
-			session := NewSession(nil, mode)
+			session := NewSession(nil, mode, agent.DefaultModel)
 			if session.mode != mode {
 				t.Errorf("Expected mode %s, got %s", mode, session.mode)
 			}
@@ -402,7 +403,7 @@ func TestSession_ModeValidation(t *testing.T) {
 
 	for _, mode := range invalidModes {
 		t.Run("invalid_mode_"+mode, func(t *testing.T) {
-			session := NewSession(nil, mode)
+			session := NewSession(nil, mode, agent.DefaultModel)
 			// Session should still be created with invalid mode
 			// Validation would happen elsewhere in the application
 			if session.mode != mode {
@@ -414,7 +415,7 @@ func TestSession_ModeValidation(t *testing.T) {
 
 func TestSession_ErrorHandling(t *testing.T) {
 	t.Run("nil_session_fields", func(t *testing.T) {
-		session := NewSession(nil, "default")
+		session := NewSession(nil, "default", agent.DefaultModel)
 
 		// Test that nil fields don't cause immediate issues
 		if session.conn != nil {
@@ -434,7 +435,7 @@ func TestSession_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("empty_mode", func(t *testing.T) {
-		session := NewSession(nil, "")
+		session := NewSession(nil, "", agent.DefaultModel)
 
 		// Session should be created even with empty mode
 		if session.mode != "" {
@@ -449,7 +450,7 @@ func TestSession_ErrorHandling(t *testing.T) {
 }
 
 func TestSession_ConversationFlow_Simulation(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	// Simulate conversation flow without actual agent
@@ -471,7 +472,7 @@ func TestSession_ConversationFlow_Simulation(t *testing.T) {
 }
 
 func TestSession_InitializationWorkflow(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 
 	// Test initial conditions
 	if session.agentReady {
@@ -487,7 +488,7 @@ func TestSession_InitializationWorkflow(t *testing.T) {
 	// Test that session can be created with different modes
 	modes := []string{"default", "schema-only", "share-results"}
 	for _, mode := range modes {
-		s := NewSession(nil, mode)
+		s := NewSession(nil, mode, agent.DefaultModel)
 		if s.mode != mode {
 			t.Errorf("Expected mode %s, got %s", mode, s.mode)
 		}
@@ -536,7 +537,7 @@ func TestSession_TableNameParsing(t *testing.T) {
 
 func TestSession_DatabaseMethods_ErrorHandling(t *testing.T) {
 	// Test database methods with nil connection to exercise error paths
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	t.Run("showSchema_with_nil_connection", func(t *testing.T) {
@@ -576,7 +577,7 @@ func TestSession_DatabaseMethods_ErrorHandling(t *testing.T) {
 }
 
 func TestSession_HandleQuery_WithAgentReady(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	// Test with agent ready but nil agent (edge case)
@@ -599,7 +600,7 @@ func TestSession_HandleQuery_WithAgentReady(t *testing.T) {
 }
 
 func TestSession_MoreCommandPaths(t *testing.T) {
-	session := NewSession(nil, "default")
+	session := NewSession(nil, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	// Test command paths that haven't been covered yet
@@ -626,7 +627,7 @@ func TestSession_MoreCommandPaths(t *testing.T) {
 
 func TestSession_DescribeTable_WithMockDB(t *testing.T) {
 	mockDB := NewMockDBConnection()
-	session := NewSession(mockDB, "default")
+	session := NewSession(mockDB, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	t.Run("describe_existing_table", func(t *testing.T) {
@@ -665,7 +666,7 @@ func TestSession_DescribeTable_WithMockDB(t *testing.T) {
 	t.Run("mock_database_error", func(t *testing.T) {
 		errorMockDB := NewMockDBConnection()
 		errorMockDB.shouldFail = "DescribeTable"
-		errorSession := NewSession(errorMockDB, "default")
+		errorSession := NewSession(errorMockDB, "default", agent.DefaultModel)
 
 		err := errorSession.describeTable(ctx, "users")
 		if err == nil {
@@ -679,7 +680,7 @@ func TestSession_DescribeTable_WithMockDB(t *testing.T) {
 	t.Run("mock_foreign_keys_error", func(t *testing.T) {
 		errorMockDB := NewMockDBConnection()
 		errorMockDB.shouldFail = "GetForeignKeys"
-		errorSession := NewSession(errorMockDB, "default")
+		errorSession := NewSession(errorMockDB, "default", agent.DefaultModel)
 
 		err := errorSession.describeTable(ctx, "users")
 		if err == nil {
@@ -693,7 +694,7 @@ func TestSession_DescribeTable_WithMockDB(t *testing.T) {
 
 func TestSession_ShowSchema_WithMockDB(t *testing.T) {
 	mockDB := NewMockDBConnection()
-	session := NewSession(mockDB, "default")
+	session := NewSession(mockDB, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	t.Run("show_schema_with_tables", func(t *testing.T) {
@@ -705,7 +706,7 @@ func TestSession_ShowSchema_WithMockDB(t *testing.T) {
 
 	t.Run("show_schema_empty_database", func(t *testing.T) {
 		emptyMockDB := &MockDBConnection{tables: []db.TableInfo{}}
-		emptySession := NewSession(emptyMockDB, "default")
+		emptySession := NewSession(emptyMockDB, "default", agent.DefaultModel)
 
 		err := emptySession.showSchema(ctx)
 		if err != nil {
@@ -716,7 +717,7 @@ func TestSession_ShowSchema_WithMockDB(t *testing.T) {
 	t.Run("show_schema_database_error", func(t *testing.T) {
 		errorMockDB := NewMockDBConnection()
 		errorMockDB.shouldFail = "ListTables"
-		errorSession := NewSession(errorMockDB, "default")
+		errorSession := NewSession(errorMockDB, "default", agent.DefaultModel)
 
 		err := errorSession.showSchema(ctx)
 		if err == nil {
@@ -730,7 +731,7 @@ func TestSession_ShowSchema_WithMockDB(t *testing.T) {
 
 func TestSession_ListTables_WithMockDB(t *testing.T) {
 	mockDB := NewMockDBConnection()
-	session := NewSession(mockDB, "default")
+	session := NewSession(mockDB, "default", agent.DefaultModel)
 	ctx := context.Background()
 
 	t.Run("list_tables_with_data", func(t *testing.T) {
@@ -742,7 +743,7 @@ func TestSession_ListTables_WithMockDB(t *testing.T) {
 
 	t.Run("list_tables_empty_database", func(t *testing.T) {
 		emptyMockDB := &MockDBConnection{tables: []db.TableInfo{}}
-		emptySession := NewSession(emptyMockDB, "default")
+		emptySession := NewSession(emptyMockDB, "default", agent.DefaultModel)
 
 		err := emptySession.listTables(ctx)
 		if err != nil {
@@ -753,7 +754,7 @@ func TestSession_ListTables_WithMockDB(t *testing.T) {
 	t.Run("list_tables_database_error", func(t *testing.T) {
 		errorMockDB := NewMockDBConnection()
 		errorMockDB.shouldFail = "ListTables"
-		errorSession := NewSession(errorMockDB, "default")
+		errorSession := NewSession(errorMockDB, "default", agent.DefaultModel)
 
 		err := errorSession.listTables(ctx)
 		if err == nil {

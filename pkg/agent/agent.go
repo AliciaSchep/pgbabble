@@ -10,11 +10,14 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
+const DefaultModel = "claude-3-7-sonnet-20250219"
+
 type Agent struct {
 	client       *anthropic.Client
 	tools        []ToolDefinition
 	conversation []anthropic.MessageParam
 	mode         string
+	model        string
 }
 
 type ToolDefinition struct {
@@ -24,7 +27,7 @@ type ToolDefinition struct {
 	Function    func(input json.RawMessage) (string, error)
 }
 
-func NewAgent(apiKey string, mode string) (*Agent, error) {
+func NewAgent(apiKey string, mode string, model string) (*Agent, error) {
 	if apiKey == "" {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
@@ -39,6 +42,7 @@ func NewAgent(apiKey string, mode string) (*Agent, error) {
 		tools:        []ToolDefinition{},
 		conversation: []anthropic.MessageParam{},
 		mode:         mode,
+		model:        model,
 	}, nil
 }
 
@@ -75,8 +79,6 @@ or you can run the same or a modified query again for them to see the results.
 	return fmt.Sprintf(`You are a PostgreSQL expert assistant that helps users write SQL queries.
 
 %s
-
-The user can change this mode by restarting the session with a different --mode flag, but cannot change it during this session.
 
 CRITICAL: You MUST use the available tools to interact with the database. Never just describe SQL - always use tools.
 
@@ -148,7 +150,7 @@ func (a *Agent) runInference(ctx context.Context, conversation []anthropic.Messa
 	}
 
 	params := anthropic.MessageNewParams{
-		Model:     "claude-3-5-sonnet-20241022",
+		Model:     anthropic.Model(a.model),
 		MaxTokens: 4000,
 		System: []anthropic.TextBlockParam{
 			{Text: systemMessage},

@@ -12,7 +12,7 @@ A CLI tool for interacting with PostgreSQL databases using natural language quer
 
 ## Usage
 
-### API Key Setup
+### API Key Setup & model selection
 
 Before using pgbabble, you need to set up your Anthropic API key:
 
@@ -20,9 +20,11 @@ Before using pgbabble, you need to set up your Anthropic API key:
 export ANTHROPIC_API_KEY=your_api_key_here
 ```
 
-You can get an API key from [Anthropic's Console](https://console.anthropic.com/). 
+You can get an API key from [Anthropic's Console](https://console.anthropic.com/).
 
 **Note**: Currently, pgbabble only supports Anthropic's Claude models. We have plans to support other model providers (OpenAI, local models, etc.) in the future, but this has not yet been implemented.
+
+The model can be specified using the `--model` flag with a valid anthropic model alias like `claude-sonnet-4-0`. The default is `claude-3-7-sonnet-latest`.
 
 ### Connection Examples
 
@@ -137,6 +139,7 @@ pgbabble> Can you provide a summary of all colors and how many parts they are us
 ```
 pgbabble> /help              # Show all available commands
 pgbabble> /browse            # Browse last query results in full
+pgbabble> /save [filename]   # Save last query results to CSV file
 pgbabble> /schema            # Database overview
 pgbabble> /tables            # List all tables
 pgbabble> /describe <table>  # Detailed table structure
@@ -149,6 +152,8 @@ pgbabble> /mode              # Show privacy mode
 3. Type `/browse` to explore all results in the `less` pager
 4. Use standard `less` navigation (space, arrows, search with `/pattern`)
 5. Press 'q' to return to the pgbabble prompt
+6. Type `/save` to export results to CSV file with default filename
+7. Or use `/save my_analysis.csv` to specify a custom filename
 
 ## Development
 

@@ -14,19 +14,19 @@ import (
 func validateFilePath(filename string) error {
 	// Clean the path to resolve any relative components
 	cleanPath := filepath.Clean(filename)
-	
+
 	// Check for path traversal attempts
 	if strings.Contains(cleanPath, "..") {
 		return errors.New("path traversal detected: filename cannot contain '..'")
 	}
-	
+
 	// Note: We allow absolute paths but could restrict them further in production if needed
-	
+
 	// Check for empty filename
 	if cleanPath == "" || cleanPath == "." {
 		return errors.New("invalid filename: cannot be empty or current directory")
 	}
-	
+
 	return nil
 }
 
@@ -36,7 +36,7 @@ func SaveCSV(columnNames []string, allRows [][]interface{}, filename string) err
 	if err := validateFilePath(filename); err != nil {
 		return fmt.Errorf("invalid file path: %w", err)
 	}
-	
+
 	// Create the output file
 	file, err := os.Create(filepath.Clean(filename))
 	if err != nil {

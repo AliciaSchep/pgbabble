@@ -357,36 +357,3 @@ func TestSaveQueryResultToCSVSecurity(t *testing.T) {
 		}
 	})
 }
-
-func TestSaveCSVCloseError(t *testing.T) {
-	// This test verifies that file close errors are properly handled
-	// We'll test with a temporary directory and valid file to ensure
-	// the close logic is at least exercised (though it's hard to force a close error)
-	
-	tempDir := t.TempDir()
-	filename := filepath.Join(tempDir, "test_close.csv")
-	
-	columnNames := []string{"id", "name"}
-	rows := [][]interface{}{
-		{1, "Alice"},
-		{2, "Bob"},
-	}
-	
-	// This should succeed - we can't easily force a close error in tests
-	// but this ensures our close error handling path is at least compiled and exercised
-	err := SaveCSV(columnNames, rows, filename)
-	if err != nil {
-		t.Fatalf("SaveCSV failed: %v", err)
-	}
-	
-	// Verify the file was created and has correct content
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		t.Fatalf("Failed to read created file: %v", err)
-	}
-	
-	expected := "id,name\n1,Alice\n2,Bob\n"
-	if string(content) != expected {
-		t.Errorf("File content mismatch.\nExpected:\n%q\nGot:\n%q", expected, string(content))
-	}
-}

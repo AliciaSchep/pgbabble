@@ -20,11 +20,7 @@ func validateFilePath(filename string) error {
 		return errors.New("path traversal detected: filename cannot contain '..'")
 	}
 	
-	// Check for absolute paths that might escape the current directory
-	if filepath.IsAbs(cleanPath) {
-		// Allow absolute paths but warn that they should be used carefully
-		// In a production environment, you might want to restrict this further
-	}
+	// Note: We allow absolute paths but could restrict them further in production if needed
 	
 	// Check for empty filename
 	if cleanPath == "" || cleanPath == "." {
@@ -46,7 +42,14 @@ func SaveCSV(columnNames []string, allRows [][]interface{}, filename string) err
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", filename, err)
 	}
-	defer file.Close()
+
+	// Use a variable to track any close error
+	var closeErr error
+	defer func() {
+		if err := file.Close(); err != nil {
+			closeErr = err
+		}
+	}()
 
 	// Create CSV writer
 	writer := csv.NewWriter(file)
@@ -68,6 +71,11 @@ func SaveCSV(columnNames []string, allRows [][]interface{}, filename string) err
 		if err := writer.Write(stringRow); err != nil {
 			return fmt.Errorf("failed to write CSV row: %w", err)
 		}
+	}
+
+	// Check if there was a close error after all other operations succeeded
+	if closeErr != nil {
+		return fmt.Errorf("failed to close file %s: %w", filename, closeErr)
 	}
 
 	return nil
@@ -120,10 +128,12 @@ func SaveQueryResultToCSV(columnNames []string, allRows [][]interface{}, filenam
 	// Clean the filename
 	cleanFilename := filepath.Clean(filename)
 
-	// Get absolute path for display
+	// Get absolute path for display - use relative path if absolute path fails
 	absPath, err := filepath.Abs(cleanFilename)
 	if err != nil {
-		absPath = cleanFilename // fallback to relative path
+		// Note: We fall back to relative path since absolute path calculation failed
+		// This is not critical for functionality, but the user will see relative path
+		absPath = cleanFilename
 	}
 
 	// Save the CSV

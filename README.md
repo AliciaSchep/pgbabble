@@ -1,6 +1,6 @@
 # PGBabble
 
-A CLI tool for interacting with PostgreSQL databases using natural language queries powered by LLMs, while restricting what data is shared back to LLM and keeping a human-in-the-loop for query approval.
+An interactive CLI tool for exploring PostgreSQL databases using natural language while maintaining data privacy (sharing query results with LLM is disabled by default) and ensuring quality and transparency (queries get reviewed & approved before actually being run). 
 
 ## Features
 
@@ -41,6 +41,9 @@ pgbabble
 
 # Specify data sharing mode (optional)
 pgbabble --mode schema-only "postgresql://user:pass@localhost/mydb"
+
+# specify model (optional)
+pgbabble --model laude-sonnet-4-0` "postgresql://user:pass@localhost/mydb"
 ```
 
 ## Privacy Modes

@@ -29,8 +29,8 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error)
 	// Create single connection
 	conn, err := pgx.Connect(ctx, cfg.ConnectionString())
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to PostgreSQL %s@%s:%d/%s: %w",
-			cfg.User, cfg.Host, cfg.Port, cfg.Database, err)
+		return nil, fmt.Errorf("failed to connect to PostgreSQL %s: connection failed",
+			cfg.MaskedURI())
 	}
 
 	// Test the connection
@@ -38,8 +38,8 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error)
 		if closeErr := conn.Close(ctx); closeErr != nil {
 			errors.ConnectionWarning("failed to close connection during setup: %v", closeErr)
 		}
-		return nil, fmt.Errorf("failed to ping PostgreSQL %s@%s:%d/%s: %w",
-			cfg.User, cfg.Host, cfg.Port, cfg.Database, err)
+		return nil, fmt.Errorf("failed to ping PostgreSQL %s: connection test failed",
+			cfg.MaskedURI())
 	}
 
 	return &ConnectionImpl{
@@ -127,13 +127,13 @@ func (c *ConnectionImpl) reconnectWithRetry(ctx context.Context) {
 	// Create new connection
 	conn, err := pgx.Connect(ctx, c.config.ConnectionString())
 	if err != nil {
-		fmt.Printf(" reconnection failed: %v\n", err)
+		fmt.Printf(" reconnection failed\n")
 		return
 	}
 
 	// Test the connection
 	if err := conn.Ping(ctx); err != nil {
-		fmt.Printf(" ping failed: %v\n", err)
+		fmt.Printf(" ping failed\n")
 		if closeErr := conn.Close(ctx); closeErr != nil {
 			errors.ConnectionWarning("failed to close connection after ping failure: %v", closeErr)
 		}
@@ -163,8 +163,8 @@ func (c *ConnectionImpl) GetDatabaseInfo(ctx context.Context) (*DatabaseInfo, er
 	var version string
 	err := c.conn.QueryRow(ctx, "SELECT version()").Scan(&version)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get PostgreSQL version from %s@%s:%d/%s: %w",
-			c.config.User, c.config.Host, c.config.Port, c.config.Database, err)
+		return nil, fmt.Errorf("failed to get PostgreSQL version from %s: %w",
+			c.config.MaskedURI(), err)
 	}
 	info.Version = version
 

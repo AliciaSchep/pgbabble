@@ -20,6 +20,15 @@ type DBConfig struct {
 
 // NewDBConfigFromURI parses a PostgreSQL URI and returns a DBConfig
 func NewDBConfigFromURI(uri string) (*DBConfig, error) {
+	// Validate basic format
+	if uri == "" {
+		return nil, fmt.Errorf("URI cannot be empty")
+	}
+
+	if len(uri) > 2048 {
+		return nil, fmt.Errorf("URI too long (max 2048 characters)")
+	}
+
 	if !strings.HasPrefix(uri, "postgresql://") && !strings.HasPrefix(uri, "postgres://") {
 		return nil, fmt.Errorf("invalid PostgreSQL URI: must start with postgresql:// or postgres://")
 	}
@@ -29,9 +38,24 @@ func NewDBConfigFromURI(uri string) (*DBConfig, error) {
 		return nil, fmt.Errorf("failed to parse PostgreSQL URI: %w", err)
 	}
 
+	// Validate required components
+	if parsedURL.Hostname() == "" {
+		return nil, fmt.Errorf("invalid PostgreSQL URI: hostname is required")
+	}
+
+	database := strings.TrimPrefix(parsedURL.Path, "/")
+	if database == "" {
+		return nil, fmt.Errorf("invalid PostgreSQL URI: database name is required")
+	}
+
+	// Validate database name doesn't contain suspicious characters
+	if strings.ContainsAny(database, ";&|<>\"'`") {
+		return nil, fmt.Errorf("invalid database name: contains unsafe characters")
+	}
+
 	config := &DBConfig{
 		Host:     parsedURL.Hostname(),
-		Database: strings.TrimPrefix(parsedURL.Path, "/"),
+		Database: database,
 		SSLMode:  "prefer", // default
 	}
 
@@ -41,6 +65,9 @@ func NewDBConfigFromURI(uri string) (*DBConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid port in URI: %w", err)
 		}
+		if port < 1 || port > 65535 {
+			return nil, fmt.Errorf("invalid port in URI: must be between 1 and 65535")
+		}
 		config.Port = port
 	} else {
 		config.Port = 5432 // default PostgreSQL port
@@ -48,7 +75,15 @@ func NewDBConfigFromURI(uri string) (*DBConfig, error) {
 
 	// Parse user info
 	if parsedURL.User != nil {
-		config.User = parsedURL.User.Username()
+		username := parsedURL.User.Username()
+		if username == "" {
+			return nil, fmt.Errorf("invalid PostgreSQL URI: username cannot be empty")
+		}
+		// Validate username doesn't contain suspicious characters
+		if strings.ContainsAny(username, ";&|<>\"'`") {
+			return nil, fmt.Errorf("invalid username: contains unsafe characters")
+		}
+		config.User = username
 		if password, ok := parsedURL.User.Password(); ok {
 			config.Password = password
 		}
@@ -59,7 +94,20 @@ func NewDBConfigFromURI(uri string) (*DBConfig, error) {
 		if len(values) > 0 {
 			switch key {
 			case "sslmode":
-				config.SSLMode = values[0]
+				sslMode := values[0]
+				// Validate SSL mode is one of the supported values
+				validSSLModes := []string{"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
+				isValid := false
+				for _, validMode := range validSSLModes {
+					if sslMode == validMode {
+						isValid = true
+						break
+					}
+				}
+				if !isValid {
+					return nil, fmt.Errorf("invalid sslmode '%s': must be one of %v", sslMode, validSSLModes)
+				}
+				config.SSLMode = sslMode
 			}
 		}
 	}
@@ -112,6 +160,32 @@ func (c *DBConfig) ConnectionString() string {
 	}
 
 	return strings.Join(parts, " ")
+}
+
+// MaskedURI returns a PostgreSQL URI with password masked for logging
+func (c *DBConfig) MaskedURI() string {
+	var userInfo string
+	if c.User != "" {
+		if c.Password != "" {
+			userInfo = c.User + ":***@"
+		} else {
+			userInfo = c.User + "@"
+		}
+	}
+
+	host := c.Host
+	if c.Port != 5432 && c.Port != 0 {
+		host = fmt.Sprintf("%s:%d", c.Host, c.Port)
+	}
+
+	uri := fmt.Sprintf("postgresql://%s%s/%s", userInfo, host, c.Database)
+
+	// Add SSL mode if not default
+	if c.SSLMode != "" && c.SSLMode != "prefer" {
+		uri += "?sslmode=" + c.SSLMode
+	}
+
+	return uri
 }
 
 // Validate checks if the configuration has required fields

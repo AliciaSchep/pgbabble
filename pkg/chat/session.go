@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -9,7 +10,7 @@ import (
 	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 	"github.com/AliciaSchep/pgbabble/pkg/display"
-	"github.com/AliciaSchep/pgbabble/pkg/errors"
+	pkgerrors "github.com/AliciaSchep/pgbabble/pkg/errors"
 	"github.com/chzyer/readline"
 )
 
@@ -21,6 +22,7 @@ type Session struct {
 	rl         *readline.Instance
 	agent      *agent.Agent
 	agentReady bool
+	signalCtx  context.Context
 }
 
 // NewSession creates a new chat session
@@ -35,6 +37,8 @@ func NewSession(conn db.Connection, mode string, model string) *Session {
 
 // Start begins the interactive chat session
 func (s *Session) Start(ctx context.Context) error {
+	// Store the signal context for creating cancellable child contexts
+	s.signalCtx = ctx
 	// Configure readline
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:      "pgbabble> ",
@@ -45,7 +49,7 @@ func (s *Session) Start(ctx context.Context) error {
 	}
 	defer func() {
 		if err := rl.Close(); err != nil {
-			errors.ConnectionWarning("failed to close readline: %v", err)
+			pkgerrors.ConnectionWarning("failed to close readline: %v", err)
 		}
 	}()
 
@@ -75,20 +79,38 @@ func (s *Session) Start(ctx context.Context) error {
 
 		// Handle commands
 		if strings.HasPrefix(line, "/") {
-			if err := s.handleCommand(ctx, line); err != nil {
-				errors.UserError("%v", err)
+			// Create a context that can be cancelled by Ctrl+C, but is fresh if signal context was cancelled
+			cmdCtx := s.createOperationContext()
+			if err := s.handleCommand(cmdCtx, line); err != nil {
+				pkgerrors.UserError("%v", err)
 			}
 			continue
 		}
 
 		// Handle natural language queries
-		if err := s.handleQuery(ctx, line); err != nil {
-			errors.UserError("%v", err)
+		// Create a context that can be cancelled by Ctrl+C, but is fresh if signal context was cancelled  
+		queryCtx := s.createOperationContext()
+		if err := s.handleQuery(queryCtx, line); err != nil {
+			pkgerrors.UserError("%v", err)
 		}
 	}
 
 	fmt.Println("Goodbye!")
 	return nil
+}
+
+// createOperationContext creates a context for individual operations (commands/queries)
+// If the signal context is still active, operations can be cancelled by Ctrl+C
+// If the signal context was cancelled (from a previous Ctrl+C), creates a fresh context
+func (s *Session) createOperationContext() context.Context {
+	// Check if the signal context is still active
+	if s.signalCtx.Err() == nil {
+		// Signal context is active, create a child that can be cancelled by Ctrl+C
+		ctx, _ := context.WithCancel(s.signalCtx)
+		return ctx
+	}
+	// Signal context was cancelled, create a fresh context for this operation
+	return context.Background()
 }
 
 // handleCommand processes slash commands
@@ -179,7 +201,16 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 	// Send query to LLM agent
 	response, err := s.agent.SendMessage(ctx, query)
 	if err != nil {
-		errors.APIError("AI service", err)
+		// Check if this was a user cancellation (Ctrl+C)
+		if ctx.Err() == context.Canceled || 
+		   errors.Is(err, context.Canceled) ||
+		   strings.Contains(err.Error(), "context canceled") ||
+		   strings.Contains(err.Error(), "context cancelled") {
+			fmt.Println("⏹️  Query cancelled by user")
+			return nil
+		}
+		// Other API errors
+		pkgerrors.APIError("AI service", err)
 		return nil
 	}
 
@@ -196,7 +227,7 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 func (s *Session) initializeAgent() {
 	agentClient, err := agent.NewAgent("", s.mode, s.model)
 	if err != nil {
-		errors.UserInfo("LLM features not available: %v", err)
+		pkgerrors.UserInfo("LLM features not available: %v", err)
 		fmt.Println("   Set ANTHROPIC_API_KEY environment variable to enable AI features")
 		fmt.Println()
 		return
@@ -235,7 +266,7 @@ func (s *Session) getUserApproval(queryInfo string) bool {
 
 	response, err := s.rl.Readline()
 	if err != nil {
-		errors.UserError("error reading input: %v", err)
+		pkgerrors.UserError("error reading input: %v", err)
 		// Reset prompt back to normal
 		s.rl.SetPrompt("pgbabble> ")
 		return false

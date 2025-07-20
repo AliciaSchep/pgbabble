@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -449,6 +450,7 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 			case <-ticker.C:
 				elapsed := time.Since(startTime)
 				fmt.Printf("\rQuery running... %v elapsed", elapsed.Round(time.Second))
+				os.Stdout.Sync()
 			case <-queryCtx.Done():
 				// Context cancelled - stop progress indicator
 				return
@@ -459,6 +461,7 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 	}()
 
 	fmt.Print("Executing query...")
+	os.Stdout.Sync()
 
 	// Ensure we have a healthy connection
 	conn.EnsureConnection(queryCtx)

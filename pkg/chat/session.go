@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
@@ -51,6 +53,7 @@ func (s *Session) Start(ctx context.Context) error {
 
 	s.rl = rl
 
+
 	// Initialize agent if API key is available
 	s.initializeAgent()
 
@@ -60,8 +63,10 @@ func (s *Session) Start(ctx context.Context) error {
 		if err != nil {
 			if err == readline.ErrInterrupt {
 				if len(line) == 0 {
+					// Ctrl-C on empty line - exit the session
 					break
 				} else {
+					// Ctrl-C with partial input - just clear the line and continue
 					continue
 				}
 			}
@@ -174,22 +179,63 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 	}
 
 	fmt.Printf("🤔 Processing: %s\n", query)
+	fmt.Println("   (Press Ctrl+C to cancel this operation)")
 	fmt.Println()
 
-	// Send query to LLM agent
-	response, err := s.agent.SendMessage(ctx, query)
-	if err != nil {
+	// Create a cancellable context for this operation
+	opCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Channel to receive the result
+	resultCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+
+	// Run the LLM operation in a goroutine
+	go func() {
+		response, err := s.agent.SendMessage(opCtx, query)
+		if err != nil {
+			errCh <- err
+		} else {
+			resultCh <- response
+		}
+	}()
+
+	// Set up signal handling for this operation
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt)
+	defer signal.Stop(sigChan)
+
+	// Wait for either completion or cancellation
+	select {
+	case response := <-resultCh:
+		// Success - display the response
+		fmt.Println("🤖 AI Response:")
+		fmt.Println(strings.Repeat("=", 50))
+		fmt.Println(response)
+		fmt.Println()
+		return nil
+
+	case err := <-errCh:
+		// Check if it was cancelled
+		if opCtx.Err() == context.Canceled {
+			// Operation was cancelled - session continues
+			return nil
+		}
 		errors.APIError("AI service", err)
 		return nil
+
+	case <-sigChan:
+		// Ctrl-C pressed - cancel the operation
+		cancel()
+		fmt.Println("\n🚫 Operation cancelled by user")
+		// Wait a bit for the operation to actually cancel
+		select {
+		case <-resultCh:
+		case <-errCh:
+		case <-time.After(1 * time.Second):
+		}
+		return nil
 	}
-
-	// Display the response
-	fmt.Println("🤖 AI Response:")
-	fmt.Println(strings.Repeat("=", 50))
-	fmt.Println(response)
-	fmt.Println()
-
-	return nil
 }
 
 // initializeAgent sets up the LLM agent with schema tools
@@ -224,7 +270,7 @@ func (s *Session) initializeAgent() {
 }
 
 // getUserApproval prompts the user to approve a SQL query execution
-func (s *Session) getUserApproval(queryInfo string) bool {
+func (s *Session) getUserApproval(ctx context.Context, queryInfo string) bool {
 	fmt.Println("\n🔍 SQL Query Ready for Execution:")
 	fmt.Println(strings.Repeat("=", 50))
 	fmt.Println(queryInfo)
@@ -233,19 +279,42 @@ func (s *Session) getUserApproval(queryInfo string) bool {
 	// Change the readline prompt temporarily for this question
 	s.rl.SetPrompt("Execute this query? (y/yes/n/no): ")
 
-	response, err := s.rl.Readline()
-	if err != nil {
-		errors.UserError("error reading input: %v", err)
+	// Create a channel to receive the readline result
+	resultCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+
+	// Start readline in a goroutine
+	go func() {
+		response, err := s.rl.Readline()
+		if err != nil {
+			errCh <- err
+			return
+		}
+		resultCh <- response
+	}()
+
+	// Wait for either user input or context cancellation
+	select {
+	case response := <-resultCh:
+		// Reset prompt back to normal
+		s.rl.SetPrompt("pgbabble> ")
+		response = strings.ToLower(strings.TrimSpace(response))
+		return response == "y" || response == "yes"
+	case err := <-errCh:
+		if err == readline.ErrInterrupt {
+			fmt.Println("\nQuery cancelled by user")
+		} else {
+			errors.UserError("error reading input: %v", err)
+		}
+		// Reset prompt back to normal
+		s.rl.SetPrompt("pgbabble> ")
+		return false
+	case <-ctx.Done():
+		fmt.Println("\nQuery cancelled by user")
 		// Reset prompt back to normal
 		s.rl.SetPrompt("pgbabble> ")
 		return false
 	}
-
-	// Reset prompt back to normal
-	s.rl.SetPrompt("pgbabble> ")
-
-	response = strings.ToLower(strings.TrimSpace(response))
-	return response == "y" || response == "yes"
 }
 
 // showHelp displays available commands
@@ -455,3 +524,4 @@ func (s *Session) saveLastResults(ctx context.Context, filename string) error {
 
 	return nil
 }
+

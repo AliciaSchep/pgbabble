@@ -285,7 +285,7 @@ func TestCreateSchemaTools(t *testing.T) {
 func TestCreateExecutionTools(t *testing.T) {
 	mockDB := &MockConnection{}
 
-	getUserApproval := func(query string) bool { return true }
+	getUserApproval := func(ctx context.Context, query string) bool { return true }
 	tools := CreateExecutionTools(mockDB, getUserApproval, "default")
 	if len(tools) == 0 {
 		t.Fatal("expected execution tools to be created")
@@ -489,7 +489,7 @@ func TestSearchColumnsTool(t *testing.T) {
 func TestCreateExecuteSQLTool(t *testing.T) {
 	mockDB := &MockConnection{}
 
-	getUserApproval := func(query string) bool { return true }
+	getUserApproval := func(ctx context.Context, query string) bool { return true }
 	tool := createExecuteSQLTool(mockDB, getUserApproval, "default")
 	if tool.Name != "execute_sql" {
 		t.Errorf("expected tool name 'execute_sql', got '%s'", tool.Name)
@@ -535,7 +535,7 @@ func TestCreateExecuteSQLTool(t *testing.T) {
 func TestCreateExplainQueryTool(t *testing.T) {
 	mockDB := &MockConnection{}
 
-	getUserApproval := func(query string) bool { return true }
+	getUserApproval := func(ctx context.Context, query string) bool { return true }
 	tool := createExplainQueryTool(mockDB, getUserApproval, "default")
 	if tool.Name != "explain_query" {
 		t.Errorf("expected tool name 'explain_query', got '%s'", tool.Name)

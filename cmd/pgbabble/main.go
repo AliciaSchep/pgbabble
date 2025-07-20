@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/chat"
@@ -70,9 +68,8 @@ func init() {
 }
 
 func runPGBabble(cmd *cobra.Command, args []string) error {
-	// Create cancellable context that responds to interrupt signals
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
+	// Create context - signal handling will be done in the session
+	ctx := context.Background()
 
 	var dbConfig *config.DBConfig
 	var err error

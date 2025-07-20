@@ -36,7 +36,7 @@ func CreateSchemaTools(conn db.Connection, mode string) []*Tool {
 }
 
 // CreateExecutionTools creates SQL execution tools for the LLM
-func CreateExecutionTools(conn db.Connection, getUserApproval func(string) bool, mode string) []*Tool {
+func CreateExecutionTools(conn db.Connection, getUserApproval func(context.Context, string) bool, mode string) []*Tool {
 	return []*Tool{
 		createExecuteSQLTool(conn, getUserApproval, mode),
 		createExplainQueryTool(conn, getUserApproval, mode),
@@ -359,7 +359,7 @@ func MarshalToolsToJSON(tools []*Tool) (string, error) {
 }
 
 // createExecuteSQLTool creates a tool for executing SQL queries with user approval
-func createExecuteSQLTool(conn db.Connection, getUserApproval func(string) bool, mode string) *Tool {
+func createExecuteSQLTool(conn db.Connection, getUserApproval func(context.Context, string) bool, mode string) *Tool {
 	return &Tool{
 		Name:        "execute_sql",
 		Description: "Execute a SQL query after getting user approval. Use this when you have generated a SQL query that answers the user's question. IMPORTANT: If the user rejects the query, do NOT immediately offer another SQL query. Instead, ask the user what they want changed or modified about the query approach.",
@@ -392,7 +392,7 @@ func createExecuteSQLTool(conn db.Connection, getUserApproval func(string) bool,
 			}
 
 			// Present SQL to user for approval
-			approved := getUserApproval(fmt.Sprintf("%s\n\nSQL Query:\n%s", explanation, sqlQuery))
+			approved := getUserApproval(ctx, fmt.Sprintf("%s\n\nSQL Query:\n%s", explanation, sqlQuery))
 
 			if !approved {
 				return &ToolResult{
@@ -474,8 +474,8 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 
 		// Check for context cancellation and provide appropriate message
 		if queryCtx.Err() == context.Canceled {
-			errors.UserError("Query cancelled by user (Ctrl-C)")
-			return "", fmt.Errorf("query cancelled by user (Ctrl-C)")
+			errors.UserError("Query cancelled by user")
+			return "", fmt.Errorf("query cancelled by user")
 		}
 		if queryCtx.Err() == context.DeadlineExceeded {
 			errors.UserError("Query timed out after %v", QueryTimeout)
@@ -812,7 +812,7 @@ func formatUserError(err error) string {
 }
 
 // createExplainQueryTool creates a tool for analyzing query execution plans
-func createExplainQueryTool(conn db.Connection, getUserApproval func(string) bool, mode string) *Tool {
+func createExplainQueryTool(conn db.Connection, getUserApproval func(context.Context, string) bool, mode string) *Tool {
 	return &Tool{
 		Name:        "explain_query",
 		Description: "Analyze a SQL query's execution plan using EXPLAIN (without actually executing the query). This helps understand query performance and optimization opportunities. IMPORTANT: If the user declines analysis, ask what they want changed or if they prefer a different approach.",
@@ -845,7 +845,7 @@ func createExplainQueryTool(conn db.Connection, getUserApproval func(string) boo
 			}
 
 			// Present query to user for approval
-			approved := getUserApproval(fmt.Sprintf("%s\n\nQuery to analyze:\n%s\n\nNote: This will run EXPLAIN (not ANALYZE) - no data will be modified", explanation, sqlQuery))
+			approved := getUserApproval(ctx, fmt.Sprintf("%s\n\nQuery to analyze:\n%s\n\nNote: This will run EXPLAIN (not ANALYZE) - no data will be modified", explanation, sqlQuery))
 
 			if !approved {
 				return &ToolResult{
@@ -905,7 +905,7 @@ func executeExplainQuery(ctx context.Context, conn db.Connection, explainSQL, or
 	if err != nil {
 		// Check for context cancellation and provide appropriate message
 		if queryCtx.Err() == context.Canceled {
-			return "", fmt.Errorf("EXPLAIN query cancelled by user (Ctrl-C)")
+			return "", fmt.Errorf("EXPLAIN cancelled by user")
 		}
 		if queryCtx.Err() == context.DeadlineExceeded {
 			return "", fmt.Errorf("EXPLAIN query timed out after %v", QueryTimeout)

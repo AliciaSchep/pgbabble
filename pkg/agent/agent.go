@@ -24,7 +24,7 @@ type ToolDefinition struct {
 	Name        string
 	Description string
 	InputSchema anthropic.ToolInputSchemaParam
-	Function    func(input json.RawMessage) (string, error)
+	Function    func(ctx context.Context, input json.RawMessage) (string, error)
 }
 
 func NewAgent(apiKey string, mode string, model string) (*Agent, error) {
@@ -107,19 +107,39 @@ Do NOT provide raw SQL in text. Use execute_sql tool for all query execution.`, 
 
 func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, error) {
 	// Add user message to conversation history
-	a.conversation = append(a.conversation, anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)))
+	userMsgParam := anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage))
+	a.conversation = append(a.conversation, userMsgParam)
 
 	systemMessage := a.generateSystemMessage()
 
 	for {
+		// Check for cancellation before making API call
+		select {
+		case <-ctx.Done():
+			// Remove the user message we just added since it wasn't processed
+			if len(a.conversation) > 0 {
+				a.conversation = a.conversation[:len(a.conversation)-1]
+			}
+			return "", fmt.Errorf("AI agent interrupted by user")
+		default:
+		}
+
 		message, err := a.runInference(ctx, a.conversation, systemMessage)
 		if err != nil {
+			// Check if this was a cancellation
+			if ctx.Err() != nil {
+				// Remove the user message we just added since it wasn't processed
+				if len(a.conversation) > 0 {
+					a.conversation = a.conversation[:len(a.conversation)-1]
+				}
+				return "", fmt.Errorf("AI agent interrupted by user")
+			}
 			return "", err
 		}
-		a.conversation = append(a.conversation, message.ToParam())
 
 		var textResponse string
 		toolResults := []anthropic.ContentBlockParamUnion{}
+		var wasToolsCancelled bool
 
 		for _, content := range message.Content {
 			switch content.Type {
@@ -127,17 +147,44 @@ func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, er
 				textResponse += content.Text
 			case "tool_use":
 				fmt.Printf("🛠️  LLM called tool: %s\n", content.Name)
-				result := a.executeTool(content.ID, content.Name, content.Input)
+				
+				// Check for cancellation before executing each tool
+				if ctx.Err() == context.Canceled {
+					// Context was cancelled - don't add assistant message to history
+					// Remove the user message since it wasn't fully processed
+					if len(a.conversation) > 0 {
+						a.conversation = a.conversation[:len(a.conversation)-1]
+					}
+					return "", fmt.Errorf("AI agent interrupted by user")
+				}
+				
+				result := a.executeTool(ctx, content.ID, content.Name, content.Input)
 				toolResults = append(toolResults, result)
+				
+				// Check if this execution was cancelled
+				if ctx.Err() == context.Canceled {
+					wasToolsCancelled = true
+				}
 			}
 		}
 
-		// If no tools were used, return the text response
+		// If no tools were used, add assistant message and return text response
 		if len(toolResults) == 0 {
+			a.conversation = append(a.conversation, message.ToParam())
 			return textResponse, nil
 		}
 
-		// Add tool results and continue the conversation
+		// If tools were cancelled, don't add anything to conversation history
+		if wasToolsCancelled {
+			// Remove the user message since it wasn't fully processed
+			if len(a.conversation) > 0 {
+				a.conversation = a.conversation[:len(a.conversation)-1]
+			}
+			return "", fmt.Errorf("AI agent interrupted by user")
+		}
+
+		// Add assistant message and tool results to conversation
+		a.conversation = append(a.conversation, message.ToParam())
 		a.conversation = append(a.conversation, anthropic.NewUserMessage(toolResults...))
 	}
 }
@@ -169,7 +216,7 @@ func (a *Agent) runInference(ctx context.Context, conversation []anthropic.Messa
 	return message, nil
 }
 
-func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
+func (a *Agent) executeTool(ctx context.Context, id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
 	var toolDef ToolDefinition
 	var found bool
 	for _, tool := range a.tools {
@@ -192,9 +239,22 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 		}
 	}
 
-	response, err := toolDef.Function(input)
+	response, err := toolDef.Function(ctx, input)
 	if err != nil {
-		// Create a tool result block for error case
+		// Check if this was a cancellation
+		if ctx.Err() == context.Canceled {
+			return anthropic.ContentBlockParamUnion{
+				OfToolResult: &anthropic.ToolResultBlockParam{
+					ToolUseID: id,
+					IsError:   anthropic.Bool(true),
+					Content: []anthropic.ToolResultBlockParamContentUnion{
+						{OfText: &anthropic.TextBlockParam{Text: "Operation cancelled by user"}},
+					},
+				},
+			}
+		}
+		
+		// Create a tool result block for other error cases
 		return anthropic.ContentBlockParamUnion{
 			OfToolResult: &anthropic.ToolResultBlockParam{
 				ToolUseID: id,
@@ -228,15 +288,15 @@ func ConvertToolToDefinition(tool *Tool) ToolDefinition {
 			Properties: tool.InputSchema.Properties,
 			Required:   tool.InputSchema.Required,
 		},
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(ctx context.Context, input json.RawMessage) (string, error) {
 			// Convert JSON to map for our tool handler
 			var inputMap map[string]interface{}
 			if err := json.Unmarshal(input, &inputMap); err != nil {
 				return "", fmt.Errorf("invalid input: %w", err)
 			}
 
-			// Call our tool handler
-			result, err := tool.Handler(context.Background(), inputMap)
+			// Call our tool handler with the context
+			result, err := tool.Handler(ctx, inputMap)
 			if err != nil {
 				return "", err
 			}

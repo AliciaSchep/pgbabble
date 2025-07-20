@@ -72,7 +72,7 @@ func TestAgent_AddTool(t *testing.T) {
 		InputSchema: anthropic.ToolInputSchemaParam{
 			Type: "object",
 		},
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(ctx context.Context, input json.RawMessage) (string, error) {
 			return "test result", nil
 		},
 	}
@@ -157,7 +157,7 @@ func TestConvertToolToDefinition(t *testing.T) {
 
 	// Test function execution with valid input
 	testInput := json.RawMessage(`{"param1": "test_value"}`)
-	result, err := toolDef.Function(testInput)
+	result, err := toolDef.Function(context.Background(), testInput)
 	if err != nil {
 		t.Errorf("unexpected error executing converted tool: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestConvertToolToDefinition_ErrorHandling(t *testing.T) {
 
 	// Test function execution with error result
 	testInput := json.RawMessage(`{}`)
-	result, err := toolDef.Function(testInput)
+	result, err := toolDef.Function(context.Background(), testInput)
 	if err == nil {
 		t.Error("expected error when tool returns IsError=true")
 	}
@@ -194,7 +194,7 @@ func TestConvertToolToDefinition_ErrorHandling(t *testing.T) {
 
 	// Test with invalid JSON input
 	invalidInput := json.RawMessage(`{invalid json}`)
-	_, err = toolDef.Function(invalidInput)
+	_, err = toolDef.Function(context.Background(), invalidInput)
 	if err == nil {
 		t.Error("expected error with invalid JSON input")
 	}
@@ -206,7 +206,7 @@ func TestAgent_executeTool(t *testing.T) {
 			{
 				Name:        "test_tool",
 				Description: "Test tool",
-				Function: func(input json.RawMessage) (string, error) {
+				Function: func(ctx context.Context, input json.RawMessage) (string, error) {
 					return "success", nil
 				},
 			},
@@ -216,7 +216,7 @@ func TestAgent_executeTool(t *testing.T) {
 
 	// Test successful tool execution
 	input := json.RawMessage(`{"test": "value"}`)
-	result := agent.executeTool("test-id", "test_tool", input)
+	result := agent.executeTool(context.Background(), "test-id", "test_tool", input)
 
 	// Verify the result structure
 	if result.OfToolResult == nil {
@@ -231,7 +231,7 @@ func TestAgent_executeTool(t *testing.T) {
 	}
 
 	// Test tool not found - should return error structure
-	result = agent.executeTool("test-id", "nonexistent_tool", input)
+	result = agent.executeTool(context.Background(), "test-id", "nonexistent_tool", input)
 	if result.OfToolResult == nil {
 		t.Error("expected OfToolResult to be set for error case")
 	}
@@ -1397,4 +1397,86 @@ func stringContains(str, substr string) bool {
 		}
 	}
 	return false
+}
+
+// Test LLM API call cancellation functionality
+func TestLLMAPICancellation(t *testing.T) {
+	t.Run("SendMessage respects context cancellation", func(t *testing.T) {
+		// Create a cancellable context
+		ctx, cancel := context.WithCancel(context.Background())
+		
+		// Create agent (this will fail due to no API key but that's okay for this test)
+		agent, err := NewAgent("test-key", "default", "claude-3-7-sonnet-latest")
+		if err != nil {
+			t.Skipf("Skipping test due to agent creation error: %v", err)
+		}
+
+		// Cancel context immediately
+		cancel()
+
+		// Call SendMessage with cancelled context
+		_, err = agent.SendMessage(ctx, "test message")
+		
+		// Should get cancellation error
+		if err == nil {
+			t.Error("Expected error due to cancelled context")
+		}
+		
+		expectedMsg := "AI agent interrupted by user"
+		if !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Expected error to contain '%s', got: %s", expectedMsg, err.Error())
+		}
+	})
+	
+	t.Run("conversation history cleaned up on cancellation", func(t *testing.T) {
+		// Create agent
+		agent, err := NewAgent("test-key", "default", "claude-3-7-sonnet-latest")
+		if err != nil {
+			t.Skipf("Skipping test due to agent creation error: %v", err)
+		}
+
+		// Check initial conversation is empty
+		if len(agent.conversation) != 0 {
+			t.Errorf("Expected empty conversation initially, got %d messages", len(agent.conversation))
+		}
+
+		// Create cancelled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// Try to send message with cancelled context
+		_, err = agent.SendMessage(ctx, "test message that should be cleaned up")
+		
+		// Should get cancellation error
+		if err == nil {
+			t.Error("Expected error due to cancelled context")
+		}
+
+		// Conversation should still be empty (message should be cleaned up)
+		if len(agent.conversation) != 0 {
+			t.Errorf("Expected conversation to be cleaned up after cancellation, got %d messages", len(agent.conversation))
+		}
+	})
+	
+	t.Run("conversation history preserved for successful messages", func(t *testing.T) {
+		// This test would require mocking the Anthropic API which is complex
+		// For now, we'll just verify the conversation grows when messages are added directly
+		agent, err := NewAgent("test-key", "default", "claude-3-7-sonnet-latest")
+		if err != nil {
+			t.Skipf("Skipping test due to agent creation error: %v", err)
+		}
+
+		// Simulate adding a message directly (bypassing API call)
+		agent.conversation = append(agent.conversation, anthropic.NewUserMessage(anthropic.NewTextBlock("test message")))
+		
+		if len(agent.conversation) != 1 {
+			t.Errorf("Expected 1 message in conversation, got %d", len(agent.conversation))
+		}
+
+		// Clear conversation should work
+		agent.ClearConversation()
+		if len(agent.conversation) != 0 {
+			t.Errorf("Expected empty conversation after clear, got %d messages", len(agent.conversation))
+		}
+	})
 }

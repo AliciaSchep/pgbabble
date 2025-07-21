@@ -239,6 +239,10 @@ func (m *MockConnection) EnsureConnection(ctx context.Context) {
 	// No-op for mock
 }
 
+func (m *MockConnection) ForceReconnect(ctx context.Context) {
+	// No-op for mock
+}
+
 func TestCreateSchemaTools(t *testing.T) {
 	mockDB := &MockConnection{
 		tables: []db.TableInfo{

@@ -484,9 +484,8 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 		   strings.Contains(err.Error(), "context cancelled") {
 			fmt.Println("⏹️  Query cancelled by user")
 			
-			// Force reconnection after query cancellation
-			// Query cancellation may invalidate the connection in pgx
-			conn.ForceReconnect(ctx)
+			// With connection pools, cancelled connections are automatically handled
+			// No need for manual reconnection
 			
 			return "Query was cancelled by the user. The database connection remains active and ready for new queries. Please ask the user what they would like to do next.", nil
 		}
@@ -924,9 +923,8 @@ func executeExplainQuery(ctx context.Context, conn db.Connection, explainSQL, or
 		   strings.Contains(err.Error(), "context cancelled") {
 			fmt.Println("⏹️  EXPLAIN query cancelled by user")
 			
-			// Force reconnection after query cancellation
-			// Query cancellation may invalidate the connection in pgx
-			conn.ForceReconnect(ctx)
+			// With connection pools, cancelled connections are automatically handled
+			// No need for manual reconnection
 			
 			return "EXPLAIN query was cancelled by the user. The database connection remains active and ready for new queries.", nil
 		}

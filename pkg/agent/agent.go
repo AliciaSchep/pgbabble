@@ -24,7 +24,7 @@ type ToolDefinition struct {
 	Name        string
 	Description string
 	InputSchema anthropic.ToolInputSchemaParam
-	Function    func(input json.RawMessage) (string, error)
+	Function    func(ctx context.Context, input json.RawMessage) (string, error)
 }
 
 func NewAgent(apiKey string, mode string, model string) (*Agent, error) {
@@ -106,6 +106,10 @@ Do NOT provide raw SQL in text. Use execute_sql tool for all query execution.`, 
 }
 
 func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, error) {
+	// Save the current conversation state so we can restore it if the call fails
+	originalConversation := make([]anthropic.MessageParam, len(a.conversation))
+	copy(originalConversation, a.conversation)
+
 	// Add user message to conversation history
 	a.conversation = append(a.conversation, anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)))
 
@@ -114,6 +118,8 @@ func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, er
 	for {
 		message, err := a.runInference(ctx, a.conversation, systemMessage)
 		if err != nil {
+			// Restore conversation to previous state since the call failed
+			a.conversation = originalConversation
 			return "", err
 		}
 		a.conversation = append(a.conversation, message.ToParam())
@@ -126,8 +132,14 @@ func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, er
 			case "text":
 				textResponse += content.Text
 			case "tool_use":
+				// Check if context was cancelled before tool execution
+				if ctx.Err() != nil {
+					// Restore conversation to previous state since context was cancelled
+					a.conversation = originalConversation
+					return "", ctx.Err()
+				}
 				fmt.Printf("🛠️  LLM called tool: %s\n", content.Name)
-				result := a.executeTool(content.ID, content.Name, content.Input)
+				result := a.executeTool(ctx, content.ID, content.Name, content.Input)
 				toolResults = append(toolResults, result)
 			}
 		}
@@ -143,6 +155,10 @@ func (a *Agent) SendMessage(ctx context.Context, userMessage string) (string, er
 }
 
 func (a *Agent) runInference(ctx context.Context, conversation []anthropic.MessageParam, systemMessage string) (*anthropic.Message, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("anthropic client is nil")
+	}
+
 	// Convert tools to Anthropic format
 	anthropicTools := make([]anthropic.ToolUnionParam, len(a.tools))
 	for i, tool := range a.tools {
@@ -169,7 +185,7 @@ func (a *Agent) runInference(ctx context.Context, conversation []anthropic.Messa
 	return message, nil
 }
 
-func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
+func (a *Agent) executeTool(ctx context.Context, id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
 	var toolDef ToolDefinition
 	var found bool
 	for _, tool := range a.tools {
@@ -192,7 +208,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 		}
 	}
 
-	response, err := toolDef.Function(input)
+	response, err := toolDef.Function(ctx, input)
 	if err != nil {
 		// Create a tool result block for error case
 		return anthropic.ContentBlockParamUnion{
@@ -228,15 +244,15 @@ func ConvertToolToDefinition(tool *Tool) ToolDefinition {
 			Properties: tool.InputSchema.Properties,
 			Required:   tool.InputSchema.Required,
 		},
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(ctx context.Context, input json.RawMessage) (string, error) {
 			// Convert JSON to map for our tool handler
 			var inputMap map[string]interface{}
 			if err := json.Unmarshal(input, &inputMap); err != nil {
 				return "", fmt.Errorf("invalid input: %w", err)
 			}
 
-			// Call our tool handler
-			result, err := tool.Handler(context.Background(), inputMap)
+			// Call our tool handler with the proper context
+			result, err := tool.Handler(ctx, inputMap)
 			if err != nil {
 				return "", err
 			}

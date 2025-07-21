@@ -8,15 +8,16 @@ import (
 	"github.com/AliciaSchep/pgbabble/pkg/config"
 	"github.com/AliciaSchep/pgbabble/pkg/errors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ConnectionImpl wraps a PostgreSQL connection and implements the Connection interface
+// ConnectionImpl wraps a PostgreSQL connection pool and implements the Connection interface
 type ConnectionImpl struct {
-	conn   *pgx.Conn
+	pool   *pgxpool.Pool
 	config *config.DBConfig
 }
 
-// Connect establishes a connection to PostgreSQL using the provided config
+// Connect establishes a connection pool to PostgreSQL using the provided config
 func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("database configuration cannot be nil")
@@ -26,127 +27,67 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error)
 		return nil, fmt.Errorf("invalid database configuration: %w", err)
 	}
 
-	// Create single connection
-	conn, err := pgx.Connect(ctx, cfg.ConnectionString())
+	// Create connection pool with default settings
+	poolConfig, err := pgxpool.ParseConfig(cfg.ConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+	}
+
+	// Configure pool settings for our use case
+	poolConfig.MaxConns = 5 // Small pool since we're a CLI tool
+	poolConfig.MinConns = 1 // Keep at least one connection alive
+	poolConfig.MaxConnLifetime = time.Hour
+	poolConfig.MaxConnIdleTime = 30 * time.Minute
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to PostgreSQL %s: connection failed",
 			cfg.MaskedURI())
 	}
 
-	// Test the connection
-	if err := conn.Ping(ctx); err != nil {
-		if closeErr := conn.Close(ctx); closeErr != nil {
-			errors.ConnectionWarning("failed to close connection during setup: %v", closeErr)
-		}
-		return nil, fmt.Errorf("failed to ping PostgreSQL %s: connection test failed",
+	// Test the connection pool
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to connect to PostgreSQL %s: connection failed",
 			cfg.MaskedURI())
 	}
 
 	return &ConnectionImpl{
-		conn:   conn,
+		pool:   pool,
 		config: cfg,
 	}, nil
 }
 
-// Close closes the database connection
+// Close closes the database connection pool
 func (c *ConnectionImpl) Close() {
-	if c.conn != nil {
-		if err := c.conn.Close(context.Background()); err != nil {
-			errors.ConnectionWarning("failed to close connection: %v", err)
-		}
+	if c.pool != nil {
+		c.pool.Close()
 	}
 }
 
 // Query executes a query and returns the rows
 func (c *ConnectionImpl) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
-	return c.conn.Query(ctx, sql, args...)
+	return c.pool.Query(ctx, sql, args...)
 }
 
 // QueryRow executes a query that returns at most one row
 func (c *ConnectionImpl) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
-	return c.conn.QueryRow(ctx, sql, args...)
+	return c.pool.QueryRow(ctx, sql, args...)
 }
 
-// EnsureConnection ensures we have a healthy database connection, reconnecting if necessary
+// EnsureConnection ensures we have a healthy database connection pool
 func (c *ConnectionImpl) EnsureConnection(ctx context.Context) {
-	if c.conn == nil {
-		// Initial connection during startup
-		c.reconnectWithRetry(ctx)
-		return
-	}
-
-	// Check if connection is alive
-	err := c.conn.Ping(ctx)
-	retryCount := 0
-	maxRetries := 3
-
-	for err != nil && retryCount < maxRetries {
-		// Check if context was cancelled
-		if ctx.Err() != nil {
-			fmt.Printf(" connection retry cancelled: %v\n", ctx.Err())
-			return
+	// With connection pools, this is much simpler - just ping to verify
+	if c.pool != nil {
+		if err := c.pool.Ping(ctx); err != nil {
+			errors.ConnectionWarning("connection pool ping failed: %v", err)
 		}
-
-		fmt.Print("Connection to PostgreSQL was lost. Waiting 5s...")
-		if c.conn != nil {
-			if err := c.conn.Close(ctx); err != nil {
-				errors.ConnectionWarning("failed to close stale connection: %v", err)
-			}
-		}
-
-		// Wait with context cancellation support
-		select {
-		case <-time.After(5 * time.Second):
-			// Continue with reconnection
-		case <-ctx.Done():
-			fmt.Printf(" connection retry cancelled: %v\n", ctx.Err())
-			return
-		}
-
-		fmt.Print(" reconnecting...")
-		c.reconnectWithRetry(ctx)
-		if c.conn != nil {
-			err = c.conn.Ping(ctx)
-		}
-		retryCount++
 	}
-
-	if err != nil && retryCount >= maxRetries {
-		fmt.Printf(" failed to reconnect after %d attempts: %v\n", maxRetries, err)
-	}
-}
-
-// reconnectWithRetry attempts to reconnect to the database
-func (c *ConnectionImpl) reconnectWithRetry(ctx context.Context) {
-	// Check if context was cancelled before attempting connection
-	if ctx.Err() != nil {
-		fmt.Printf(" reconnection cancelled: %v\n", ctx.Err())
-		return
-	}
-
-	// Create new connection
-	conn, err := pgx.Connect(ctx, c.config.ConnectionString())
-	if err != nil {
-		fmt.Printf(" reconnection failed\n")
-		return
-	}
-
-	// Test the connection
-	if err := conn.Ping(ctx); err != nil {
-		fmt.Printf(" ping failed\n")
-		if closeErr := conn.Close(ctx); closeErr != nil {
-			errors.ConnectionWarning("failed to close connection after ping failure: %v", closeErr)
-		}
-		return
-	}
-
-	c.conn = conn
-	fmt.Print(" connected!\n")
 }
 
 // Exec executes a query without returning any rows
 func (c *ConnectionImpl) Exec(ctx context.Context, sql string, args ...interface{}) error {
-	_, err := c.conn.Exec(ctx, sql, args...)
+	_, err := c.pool.Exec(ctx, sql, args...)
 	return err
 }
 
@@ -161,7 +102,7 @@ func (c *ConnectionImpl) GetDatabaseInfo(ctx context.Context) (*DatabaseInfo, er
 
 	// Get PostgreSQL version
 	var version string
-	err := c.conn.QueryRow(ctx, "SELECT version()").Scan(&version)
+	err := c.pool.QueryRow(ctx, "SELECT version()").Scan(&version)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PostgreSQL version from %s: %w",
 			c.config.MaskedURI(), err)

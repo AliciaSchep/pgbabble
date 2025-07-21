@@ -72,7 +72,7 @@ func TestAgent_AddTool(t *testing.T) {
 		InputSchema: anthropic.ToolInputSchemaParam{
 			Type: "object",
 		},
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(ctx context.Context, input json.RawMessage) (string, error) {
 			return "test result", nil
 		},
 	}
@@ -157,7 +157,7 @@ func TestConvertToolToDefinition(t *testing.T) {
 
 	// Test function execution with valid input
 	testInput := json.RawMessage(`{"param1": "test_value"}`)
-	result, err := toolDef.Function(testInput)
+	result, err := toolDef.Function(context.Background(), testInput)
 	if err != nil {
 		t.Errorf("unexpected error executing converted tool: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestConvertToolToDefinition_ErrorHandling(t *testing.T) {
 
 	// Test function execution with error result
 	testInput := json.RawMessage(`{}`)
-	result, err := toolDef.Function(testInput)
+	result, err := toolDef.Function(context.Background(), testInput)
 	if err == nil {
 		t.Error("expected error when tool returns IsError=true")
 	}
@@ -194,7 +194,7 @@ func TestConvertToolToDefinition_ErrorHandling(t *testing.T) {
 
 	// Test with invalid JSON input
 	invalidInput := json.RawMessage(`{invalid json}`)
-	_, err = toolDef.Function(invalidInput)
+	_, err = toolDef.Function(context.Background(), invalidInput)
 	if err == nil {
 		t.Error("expected error with invalid JSON input")
 	}
@@ -206,7 +206,7 @@ func TestAgent_executeTool(t *testing.T) {
 			{
 				Name:        "test_tool",
 				Description: "Test tool",
-				Function: func(input json.RawMessage) (string, error) {
+				Function: func(ctx context.Context, input json.RawMessage) (string, error) {
 					return "success", nil
 				},
 			},
@@ -216,7 +216,7 @@ func TestAgent_executeTool(t *testing.T) {
 
 	// Test successful tool execution
 	input := json.RawMessage(`{"test": "value"}`)
-	result := agent.executeTool("test-id", "test_tool", input)
+	result := agent.executeTool(context.Background(), "test-id", "test_tool", input)
 
 	// Verify the result structure
 	if result.OfToolResult == nil {
@@ -231,7 +231,7 @@ func TestAgent_executeTool(t *testing.T) {
 	}
 
 	// Test tool not found - should return error structure
-	result = agent.executeTool("test-id", "nonexistent_tool", input)
+	result = agent.executeTool(context.Background(), "test-id", "nonexistent_tool", input)
 	if result.OfToolResult == nil {
 		t.Error("expected OfToolResult to be set for error case")
 	}
@@ -1397,4 +1397,44 @@ func stringContains(str, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestAgent_ConversationRollbackOnCancellation(t *testing.T) {
+	// This test verifies that when SendMessage fails, the conversation state
+	// is properly rolled back to the state before the failed message was added
+
+	// Create an agent with no client (will cause API calls to fail)
+	agent := &Agent{
+		client:       nil, // This will cause runInference to fail
+		tools:        []ToolDefinition{},
+		conversation: []anthropic.MessageParam{},
+		mode:         "default",
+		model:        "claude-3-haiku-20240307",
+	}
+
+	// Add an initial message to establish baseline conversation state
+	initialMessage := anthropic.NewUserMessage(anthropic.NewTextBlock("Hello"))
+	agent.conversation = append(agent.conversation, initialMessage)
+	initialConversationLength := len(agent.conversation)
+
+	// Try to send a message - this should fail due to nil client
+	_, err := agent.SendMessage(context.Background(), "This message should fail")
+
+	// Verify that an error occurred (due to nil client)
+	if err == nil {
+		t.Fatal("Expected error due to nil client")
+	}
+
+	// Verify that conversation was rolled back to original state
+	if len(agent.conversation) != initialConversationLength {
+		t.Errorf("Expected conversation length to be %d after rollback, got %d",
+			initialConversationLength, len(agent.conversation))
+	}
+
+	// Verify the conversation still contains exactly the original message
+	if len(agent.conversation) != 1 {
+		t.Errorf("Expected exactly 1 message in conversation after rollback, got %d", len(agent.conversation))
+	}
+
+	t.Log("Conversation rollback test passed - original conversation state preserved after API failure")
 }

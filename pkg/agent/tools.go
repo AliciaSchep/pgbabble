@@ -3,13 +3,15 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 	"github.com/AliciaSchep/pgbabble/pkg/display"
-	"github.com/AliciaSchep/pgbabble/pkg/errors"
+	pkgerrors "github.com/AliciaSchep/pgbabble/pkg/errors"
 )
 
 // QueryTimeout is the default timeout for SQL query execution
@@ -449,6 +451,7 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 			case <-ticker.C:
 				elapsed := time.Since(startTime)
 				fmt.Printf("\rQuery running... %v elapsed", elapsed.Round(time.Second))
+				_ = os.Stdout.Sync()
 			case <-queryCtx.Done():
 				// Context cancelled - stop progress indicator
 				return
@@ -459,9 +462,10 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 	}()
 
 	fmt.Print("Executing query...")
+	_ = os.Stdout.Sync()
 
-	// Ensure we have a healthy connection
-	conn.EnsureConnection(queryCtx)
+	// Ensure we have a healthy connection (use parent context, not query context)
+	conn.EnsureConnection(ctx)
 
 	rows, err := conn.Query(queryCtx, sqlQuery)
 
@@ -473,18 +477,22 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 		fmt.Print("\r") // Clear progress line
 
 		// Check for context cancellation and provide appropriate message
-		if queryCtx.Err() == context.Canceled {
-			errors.UserError("Query cancelled by user (Ctrl-C)")
-			return "", fmt.Errorf("query cancelled by user (Ctrl-C)")
+		if errors.Is(err, context.Canceled) || queryCtx.Err() == context.Canceled {
+			fmt.Println("⏹️  Query cancelled by user")
+
+			// With connection pools, cancelled connections are automatically handled
+			// No need for manual reconnection
+
+			return "Query was cancelled by the user. The database connection remains active and ready for new queries. Please ask the user what they would like to do next.", nil
 		}
 		if queryCtx.Err() == context.DeadlineExceeded {
-			errors.UserError("Query timed out after %v", QueryTimeout)
+			pkgerrors.UserError("Query timed out after %v", QueryTimeout)
 			return "", fmt.Errorf("query timed out after %v - please check if your query is optimized or try adding LIMIT clause", QueryTimeout)
 		}
 
 		// Show concise error for technical users (without LLM instructions)
 		userErrorMsg := formatUserError(err)
-		errors.UserError("Query failed: %s", userErrorMsg)
+		pkgerrors.UserError("Query failed: %s", userErrorMsg)
 
 		// Return LLM-friendly error message with tool instructions
 		llmErrorMsg := formatDatabaseError(err)
@@ -507,7 +515,7 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 		values, err := rows.Values()
 		if err != nil {
 			userErrorMsg := formatUserError(err)
-			errors.UserError("Error processing query results: %s", userErrorMsg)
+			pkgerrors.UserError("Error processing query results: %s", userErrorMsg)
 			llmErrorMsg := formatDatabaseError(err)
 			return "", fmt.Errorf("%s", llmErrorMsg)
 		}
@@ -565,7 +573,7 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 
 	if err := rows.Err(); err != nil {
 		userErrorMsg := formatUserError(err)
-		errors.UserError("Error during query result iteration: %s", userErrorMsg)
+		pkgerrors.UserError("Error during query result iteration: %s", userErrorMsg)
 		llmErrorMsg := formatDatabaseError(err)
 		return "", fmt.Errorf("%s", llmErrorMsg)
 	}
@@ -898,14 +906,19 @@ func executeExplainQuery(ctx context.Context, conn db.Connection, explainSQL, or
 	// Record start time
 	startTime := time.Now()
 
-	// Ensure we have a healthy connection
-	conn.EnsureConnection(queryCtx)
+	// Ensure we have a healthy connection (use parent context, not query context)
+	conn.EnsureConnection(ctx)
 
 	rows, err := conn.Query(queryCtx, explainSQL)
 	if err != nil {
 		// Check for context cancellation and provide appropriate message
-		if queryCtx.Err() == context.Canceled {
-			return "", fmt.Errorf("EXPLAIN query cancelled by user (Ctrl-C)")
+		if errors.Is(err, context.Canceled) || queryCtx.Err() == context.Canceled {
+			fmt.Println("⏹️  EXPLAIN query cancelled by user")
+
+			// With connection pools, cancelled connections are automatically handled
+			// No need for manual reconnection
+
+			return "EXPLAIN query was cancelled by the user. The database connection remains active and ready for new queries.", nil
 		}
 		if queryCtx.Err() == context.DeadlineExceeded {
 			return "", fmt.Errorf("EXPLAIN query timed out after %v", QueryTimeout)

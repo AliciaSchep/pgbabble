@@ -2,14 +2,18 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
 
 	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
 	"github.com/AliciaSchep/pgbabble/pkg/display"
-	"github.com/AliciaSchep/pgbabble/pkg/errors"
+	pkgerrors "github.com/AliciaSchep/pgbabble/pkg/errors"
 	"github.com/chzyer/readline"
 )
 
@@ -21,6 +25,10 @@ type Session struct {
 	rl         *readline.Instance
 	agent      *agent.Agent
 	agentReady bool
+
+	// Signal handling for operation cancellation
+	currentOpCancel context.CancelFunc
+	currentOpMutex  sync.Mutex
 }
 
 // NewSession creates a new chat session
@@ -35,6 +43,8 @@ func NewSession(conn db.Connection, mode string, model string) *Session {
 
 // Start begins the interactive chat session
 func (s *Session) Start(ctx context.Context) error {
+	// Set up signal handling for operation cancellation
+	s.setupSignalHandling()
 	// Configure readline
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:      "pgbabble> ",
@@ -45,7 +55,7 @@ func (s *Session) Start(ctx context.Context) error {
 	}
 	defer func() {
 		if err := rl.Close(); err != nil {
-			errors.ConnectionWarning("failed to close readline: %v", err)
+			pkgerrors.ConnectionWarning("failed to close readline: %v", err)
 		}
 	}()
 
@@ -75,20 +85,77 @@ func (s *Session) Start(ctx context.Context) error {
 
 		// Handle commands
 		if strings.HasPrefix(line, "/") {
-			if err := s.handleCommand(ctx, line); err != nil {
-				errors.UserError("%v", err)
+			// Create a context that can be cancelled by Ctrl+C
+			cmdCtx := s.createOperationContext(ctx)
+			if err := s.handleCommand(cmdCtx, line); err != nil {
+				pkgerrors.UserError("%v", err)
 			}
+			s.clearCurrentOperation()
 			continue
 		}
 
 		// Handle natural language queries
-		if err := s.handleQuery(ctx, line); err != nil {
-			errors.UserError("%v", err)
+		// Create a context that can be cancelled by Ctrl+C
+		queryCtx := s.createOperationContext(ctx)
+		if err := s.handleQuery(queryCtx, line); err != nil {
+			pkgerrors.UserError("%v", err)
 		}
+		s.clearCurrentOperation()
 	}
 
 	fmt.Println("Goodbye!")
 	return nil
+}
+
+// setupSignalHandling configures signal handling for operation cancellation
+func (s *Session) setupSignalHandling() {
+	// Create a channel to receive interrupt signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start a goroutine to handle signals
+	go func() {
+		for range sigChan {
+			s.cancelCurrentOperation()
+		}
+	}()
+}
+
+// createOperationContext creates a context for individual operations (commands/queries)
+// This context can be cancelled by Ctrl+C without affecting the session
+func (s *Session) createOperationContext(sessionCtx context.Context) context.Context {
+	s.currentOpMutex.Lock()
+	defer s.currentOpMutex.Unlock()
+
+	// Cancel any existing operation
+	if s.currentOpCancel != nil {
+		s.currentOpCancel()
+	}
+
+	// Create a new cancellable context for this operation
+	opCtx, cancel := context.WithCancel(sessionCtx)
+	s.currentOpCancel = cancel
+
+	return opCtx
+}
+
+// cancelCurrentOperation cancels the currently running operation
+func (s *Session) cancelCurrentOperation() {
+	s.currentOpMutex.Lock()
+	defer s.currentOpMutex.Unlock()
+
+	if s.currentOpCancel != nil {
+		s.currentOpCancel()
+		s.currentOpCancel = nil
+	}
+}
+
+// clearCurrentOperation clears the current operation context when it completes normally
+func (s *Session) clearCurrentOperation() {
+	s.currentOpMutex.Lock()
+	defer s.currentOpMutex.Unlock()
+
+	s.currentOpCancel = nil
 }
 
 // handleCommand processes slash commands
@@ -179,7 +246,13 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 	// Send query to LLM agent
 	response, err := s.agent.SendMessage(ctx, query)
 	if err != nil {
-		errors.APIError("AI service", err)
+		// Check if this was a user cancellation (Ctrl+C)
+		if errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled {
+			fmt.Println("⏹️  Query cancelled by user")
+			return nil
+		}
+		// Other API errors
+		pkgerrors.APIError("AI service", err)
 		return nil
 	}
 
@@ -196,7 +269,7 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 func (s *Session) initializeAgent() {
 	agentClient, err := agent.NewAgent("", s.mode, s.model)
 	if err != nil {
-		errors.UserInfo("LLM features not available: %v", err)
+		pkgerrors.UserInfo("LLM features not available: %v", err)
 		fmt.Println("   Set ANTHROPIC_API_KEY environment variable to enable AI features")
 		fmt.Println()
 		return
@@ -235,7 +308,7 @@ func (s *Session) getUserApproval(queryInfo string) bool {
 
 	response, err := s.rl.Readline()
 	if err != nil {
-		errors.UserError("error reading input: %v", err)
+		pkgerrors.UserError("error reading input: %v", err)
 		// Reset prompt back to normal
 		s.rl.SetPrompt("pgbabble> ")
 		return false

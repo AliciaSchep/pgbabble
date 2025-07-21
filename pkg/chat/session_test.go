@@ -765,3 +765,39 @@ func TestSession_ListTables_WithMockDB(t *testing.T) {
 		}
 	})
 }
+
+func TestSession_SignalHandling(t *testing.T) {
+	// Test that signal handling works correctly for operation cancellation
+
+	// Create a session
+	session := &Session{
+		mode:  "default",
+		model: "test-model",
+	}
+
+	// Test creating an operation context
+	ctx := context.Background()
+	opCtx := session.createOperationContext(ctx)
+	if opCtx.Err() != nil {
+		t.Error("Operation context should be active when created")
+	}
+
+	// Test cancelling the current operation
+	session.cancelCurrentOperation()
+
+	// The operation context should now be cancelled
+	if opCtx.Err() == nil {
+		t.Error("Operation context should be cancelled after cancelCurrentOperation")
+	}
+
+	// Test clearing current operation
+	session.clearCurrentOperation()
+
+	// Creating a new operation context should work
+	newOpCtx := session.createOperationContext(ctx)
+	if newOpCtx.Err() != nil {
+		t.Error("New operation context should be active after clearing")
+	}
+
+	t.Log("Signal handling test passed - operation cancellation works correctly")
+}

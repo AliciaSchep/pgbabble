@@ -144,6 +144,18 @@ func (c *ConnectionImpl) reconnectWithRetry(ctx context.Context) {
 	fmt.Print(" connected!\n")
 }
 
+// ForceReconnect forces a reconnection by closing the current connection and creating a new one
+// This is useful when query cancellation may have invalidated the connection
+func (c *ConnectionImpl) ForceReconnect(ctx context.Context) {
+	if c.conn != nil {
+		if err := c.conn.Close(context.Background()); err != nil {
+			errors.ConnectionWarning("failed to close connection during force reconnect: %v", err)
+		}
+		c.conn = nil
+	}
+	c.reconnectWithRetry(ctx)
+}
+
 // Exec executes a query without returning any rows
 func (c *ConnectionImpl) Exec(ctx context.Context, sql string, args ...interface{}) error {
 	_, err := c.conn.Exec(ctx, sql, args...)

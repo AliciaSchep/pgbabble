@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"sync"
 
 	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
@@ -16,13 +19,16 @@ import (
 
 // Session represents an interactive chat session
 type Session struct {
-	conn       db.Connection
-	mode       string
-	model      string
-	rl         *readline.Instance
-	agent      *agent.Agent
-	agentReady bool
-	signalCtx  context.Context
+	conn               db.Connection
+	mode               string
+	model              string
+	rl                 *readline.Instance
+	agent              *agent.Agent
+	agentReady         bool
+	
+	// Signal handling for operation cancellation
+	currentOpCancel    context.CancelFunc
+	currentOpMutex     sync.Mutex
 }
 
 // NewSession creates a new chat session
@@ -37,8 +43,8 @@ func NewSession(conn db.Connection, mode string, model string) *Session {
 
 // Start begins the interactive chat session
 func (s *Session) Start(ctx context.Context) error {
-	// Store the signal context for creating cancellable child contexts
-	s.signalCtx = ctx
+	// Set up signal handling for operation cancellation
+	s.setupSignalHandling()
 	// Configure readline
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:      "pgbabble> ",
@@ -79,38 +85,77 @@ func (s *Session) Start(ctx context.Context) error {
 
 		// Handle commands
 		if strings.HasPrefix(line, "/") {
-			// Create a context that can be cancelled by Ctrl+C, but is fresh if signal context was cancelled
-			cmdCtx := s.createOperationContext()
+			// Create a context that can be cancelled by Ctrl+C
+			cmdCtx := s.createOperationContext(ctx)
 			if err := s.handleCommand(cmdCtx, line); err != nil {
 				pkgerrors.UserError("%v", err)
 			}
+			s.clearCurrentOperation()
 			continue
 		}
 
 		// Handle natural language queries
-		// Create a context that can be cancelled by Ctrl+C, but is fresh if signal context was cancelled  
-		queryCtx := s.createOperationContext()
+		// Create a context that can be cancelled by Ctrl+C
+		queryCtx := s.createOperationContext(ctx)
 		if err := s.handleQuery(queryCtx, line); err != nil {
 			pkgerrors.UserError("%v", err)
 		}
+		s.clearCurrentOperation()
 	}
 
 	fmt.Println("Goodbye!")
 	return nil
 }
 
+// setupSignalHandling configures signal handling for operation cancellation
+func (s *Session) setupSignalHandling() {
+	// Create a channel to receive interrupt signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	
+	// Start a goroutine to handle signals
+	go func() {
+		for range sigChan {
+			s.cancelCurrentOperation()
+		}
+	}()
+}
+
 // createOperationContext creates a context for individual operations (commands/queries)
-// If the signal context is still active, operations can be cancelled by Ctrl+C
-// If the signal context was cancelled (from a previous Ctrl+C), creates a fresh context
-func (s *Session) createOperationContext() context.Context {
-	// Check if the signal context is still active
-	if s.signalCtx.Err() == nil {
-		// Signal context is active, create a child that can be cancelled by Ctrl+C
-		ctx, _ := context.WithCancel(s.signalCtx)
-		return ctx
+// This context can be cancelled by Ctrl+C without affecting the session
+func (s *Session) createOperationContext(sessionCtx context.Context) context.Context {
+	s.currentOpMutex.Lock()
+	defer s.currentOpMutex.Unlock()
+	
+	// Cancel any existing operation
+	if s.currentOpCancel != nil {
+		s.currentOpCancel()
 	}
-	// Signal context was cancelled, create a fresh context for this operation
-	return context.Background()
+	
+	// Create a new cancellable context for this operation
+	opCtx, cancel := context.WithCancel(sessionCtx)
+	s.currentOpCancel = cancel
+	
+	return opCtx
+}
+
+// cancelCurrentOperation cancels the currently running operation
+func (s *Session) cancelCurrentOperation() {
+	s.currentOpMutex.Lock()
+	defer s.currentOpMutex.Unlock()
+	
+	if s.currentOpCancel != nil {
+		s.currentOpCancel()
+		s.currentOpCancel = nil
+	}
+}
+
+// clearCurrentOperation clears the current operation context when it completes normally
+func (s *Session) clearCurrentOperation() {
+	s.currentOpMutex.Lock()
+	defer s.currentOpMutex.Unlock()
+	
+	s.currentOpCancel = nil
 }
 
 // handleCommand processes slash commands

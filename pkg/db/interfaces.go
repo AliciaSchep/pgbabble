@@ -18,6 +18,7 @@ type Connection interface {
 	// Query operations
 	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
 	EnsureConnection(ctx context.Context)
+	ForceReconnect(ctx context.Context)
 }
 
 // Ensure that the concrete Connection struct implements the interface

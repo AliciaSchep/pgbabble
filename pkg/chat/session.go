@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"syscall"
 	"sync"
+	"syscall"
 
 	"github.com/AliciaSchep/pgbabble/pkg/agent"
 	"github.com/AliciaSchep/pgbabble/pkg/db"
@@ -19,16 +19,16 @@ import (
 
 // Session represents an interactive chat session
 type Session struct {
-	conn               db.Connection
-	mode               string
-	model              string
-	rl                 *readline.Instance
-	agent              *agent.Agent
-	agentReady         bool
-	
+	conn       db.Connection
+	mode       string
+	model      string
+	rl         *readline.Instance
+	agent      *agent.Agent
+	agentReady bool
+
 	// Signal handling for operation cancellation
-	currentOpCancel    context.CancelFunc
-	currentOpMutex     sync.Mutex
+	currentOpCancel context.CancelFunc
+	currentOpMutex  sync.Mutex
 }
 
 // NewSession creates a new chat session
@@ -112,7 +112,7 @@ func (s *Session) setupSignalHandling() {
 	// Create a channel to receive interrupt signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	
+
 	// Start a goroutine to handle signals
 	go func() {
 		for range sigChan {
@@ -126,16 +126,16 @@ func (s *Session) setupSignalHandling() {
 func (s *Session) createOperationContext(sessionCtx context.Context) context.Context {
 	s.currentOpMutex.Lock()
 	defer s.currentOpMutex.Unlock()
-	
+
 	// Cancel any existing operation
 	if s.currentOpCancel != nil {
 		s.currentOpCancel()
 	}
-	
+
 	// Create a new cancellable context for this operation
 	opCtx, cancel := context.WithCancel(sessionCtx)
 	s.currentOpCancel = cancel
-	
+
 	return opCtx
 }
 
@@ -143,7 +143,7 @@ func (s *Session) createOperationContext(sessionCtx context.Context) context.Con
 func (s *Session) cancelCurrentOperation() {
 	s.currentOpMutex.Lock()
 	defer s.currentOpMutex.Unlock()
-	
+
 	if s.currentOpCancel != nil {
 		s.currentOpCancel()
 		s.currentOpCancel = nil
@@ -154,7 +154,7 @@ func (s *Session) cancelCurrentOperation() {
 func (s *Session) clearCurrentOperation() {
 	s.currentOpMutex.Lock()
 	defer s.currentOpMutex.Unlock()
-	
+
 	s.currentOpCancel = nil
 }
 
@@ -247,10 +247,7 @@ func (s *Session) handleQuery(ctx context.Context, query string) error {
 	response, err := s.agent.SendMessage(ctx, query)
 	if err != nil {
 		// Check if this was a user cancellation (Ctrl+C)
-		if ctx.Err() == context.Canceled || 
-		   errors.Is(err, context.Canceled) ||
-		   strings.Contains(err.Error(), "context canceled") ||
-		   strings.Contains(err.Error(), "context cancelled") {
+		if errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled {
 			fmt.Println("⏹️  Query cancelled by user")
 			return nil
 		}

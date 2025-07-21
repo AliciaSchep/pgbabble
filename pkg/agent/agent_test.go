@@ -1402,7 +1402,7 @@ func stringContains(str, substr string) bool {
 func TestAgent_ConversationRollbackOnCancellation(t *testing.T) {
 	// This test verifies that when SendMessage fails, the conversation state
 	// is properly rolled back to the state before the failed message was added
-	
+
 	// Create an agent with no client (will cause API calls to fail)
 	agent := &Agent{
 		client:       nil, // This will cause runInference to fail
@@ -1427,7 +1427,7 @@ func TestAgent_ConversationRollbackOnCancellation(t *testing.T) {
 
 	// Verify that conversation was rolled back to original state
 	if len(agent.conversation) != initialConversationLength {
-		t.Errorf("Expected conversation length to be %d after rollback, got %d", 
+		t.Errorf("Expected conversation length to be %d after rollback, got %d",
 			initialConversationLength, len(agent.conversation))
 	}
 

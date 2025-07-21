@@ -34,8 +34,8 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error)
 	}
 
 	// Configure pool settings for our use case
-	poolConfig.MaxConns = 5        // Small pool since we're a CLI tool
-	poolConfig.MinConns = 1        // Keep at least one connection alive
+	poolConfig.MaxConns = 5 // Small pool since we're a CLI tool
+	poolConfig.MinConns = 1 // Keep at least one connection alive
 	poolConfig.MaxConnLifetime = time.Hour
 	poolConfig.MaxConnIdleTime = 30 * time.Minute
 
@@ -84,7 +84,6 @@ func (c *ConnectionImpl) EnsureConnection(ctx context.Context) {
 		}
 	}
 }
-
 
 // Exec executes a query without returning any rows
 func (c *ConnectionImpl) Exec(ctx context.Context, sql string, args ...interface{}) error {

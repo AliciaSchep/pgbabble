@@ -451,7 +451,7 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 			case <-ticker.C:
 				elapsed := time.Since(startTime)
 				fmt.Printf("\rQuery running... %v elapsed", elapsed.Round(time.Second))
-				os.Stdout.Sync()
+				_ = os.Stdout.Sync()
 			case <-queryCtx.Done():
 				// Context cancelled - stop progress indicator
 				return
@@ -462,7 +462,7 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 	}()
 
 	fmt.Print("Executing query...")
-	os.Stdout.Sync()
+	_ = os.Stdout.Sync()
 
 	// Ensure we have a healthy connection (use parent context, not query context)
 	conn.EnsureConnection(ctx)
@@ -477,16 +477,12 @@ func executeSelectQuery(ctx context.Context, conn db.Connection, sqlQuery string
 		fmt.Print("\r") // Clear progress line
 
 		// Check for context cancellation and provide appropriate message
-		if queryCtx.Err() == context.Canceled || 
-		   ctx.Err() == context.Canceled ||
-		   errors.Is(err, context.Canceled) ||
-		   strings.Contains(err.Error(), "context canceled") ||
-		   strings.Contains(err.Error(), "context cancelled") {
+		if errors.Is(err, context.Canceled) || queryCtx.Err() == context.Canceled {
 			fmt.Println("⏹️  Query cancelled by user")
-			
+
 			// With connection pools, cancelled connections are automatically handled
 			// No need for manual reconnection
-			
+
 			return "Query was cancelled by the user. The database connection remains active and ready for new queries. Please ask the user what they would like to do next.", nil
 		}
 		if queryCtx.Err() == context.DeadlineExceeded {
@@ -916,16 +912,12 @@ func executeExplainQuery(ctx context.Context, conn db.Connection, explainSQL, or
 	rows, err := conn.Query(queryCtx, explainSQL)
 	if err != nil {
 		// Check for context cancellation and provide appropriate message
-		if queryCtx.Err() == context.Canceled || 
-		   ctx.Err() == context.Canceled ||
-		   errors.Is(err, context.Canceled) ||
-		   strings.Contains(err.Error(), "context canceled") ||
-		   strings.Contains(err.Error(), "context cancelled") {
+		if errors.Is(err, context.Canceled) || queryCtx.Err() == context.Canceled {
 			fmt.Println("⏹️  EXPLAIN query cancelled by user")
-			
+
 			// With connection pools, cancelled connections are automatically handled
 			// No need for manual reconnection
-			
+
 			return "EXPLAIN query was cancelled by the user. The database connection remains active and ready for new queries.", nil
 		}
 		if queryCtx.Err() == context.DeadlineExceeded {

@@ -1,6 +1,6 @@
 # PGBabble
 
-An interactive CLI tool for exploring PostgreSQL databases using natural language while maintaining data privacy (sharing query results with LLM is disabled by default) and ensuring quality and transparency (queries get reviewed & approved before actually being run). 
+An interactive CLI tool for exploring PostgreSQL databases using natural language while maintaining data privacy (sharing query results with LLM is disabled by default) and ensuring quality and transparency (queries get reviewed & approved before actually being run).
 
 ## Features
 
@@ -9,6 +9,33 @@ An interactive CLI tool for exploring PostgreSQL databases using natural languag
 - Interactive chat interface
 - psql-compatible connection handling
 - Schema inspection and exploration
+
+## Installation
+
+### Download Pre-built Binaries (Recommended)
+
+Download the latest release for your platform from the [GitHub Releases page](https://github.com/AliciaSchep/pgbabble/releases).
+
+For example, on macOS (Apple Silicon):
+```bash
+curl -L https://github.com/AliciaSchep/pgbabble/releases/latest/download/pgbabble_Darwin_arm64.tar.gz | tar xz
+```
+
+Add the `pgbabble` binary to your PATH. To verify installation:
+
+```bash
+pgbabble -h
+```
+
+### Build from Source
+
+If you have Go 1.24+ installed:
+
+```bash
+git clone https://github.com/AliciaSchep/pgbabble.git
+cd pgbabble
+make install
+```
 
 ## Usage
 
@@ -60,7 +87,7 @@ PGBabble offers three privacy modes to control what information is shared with t
 
 **Best use cases:**
 - **`schema-only`**: Highly sensitive databases where even table sizes should not be shared
-- **`default`**: General database exploration and query development with privacy protection  
+- **`default`**: General database exploration and query development with privacy protection
 - **`share-results`**: Development/testing environments where full data access is acceptable
 
 ### Example Usage

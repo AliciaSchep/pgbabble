@@ -41,14 +41,14 @@ func Connect(ctx context.Context, cfg *config.DBConfig) (*ConnectionImpl, error)
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create connection pool to PostgreSQL %s: %w",
-			cfg.MaskedURI(), err)
+		return nil, fmt.Errorf("failed to connect to PostgreSQL %s: connection failed",
+			cfg.MaskedURI())
 	}
 
 	// Test the connection pool
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("failed to ping PostgreSQL %s: connection test failed",
+		return nil, fmt.Errorf("failed to connect to PostgreSQL %s: connection failed",
 			cfg.MaskedURI())
 	}
 
@@ -85,13 +85,6 @@ func (c *ConnectionImpl) EnsureConnection(ctx context.Context) {
 	}
 }
 
-// ForceReconnect is not needed with connection pools - they handle reconnection automatically
-// This method is kept for interface compatibility but is essentially a no-op
-func (c *ConnectionImpl) ForceReconnect(ctx context.Context) {
-	// Connection pools automatically handle connection failures and reconnection
-	// We just ping to ensure the pool is healthy
-	c.EnsureConnection(ctx)
-}
 
 // Exec executes a query without returning any rows
 func (c *ConnectionImpl) Exec(ctx context.Context, sql string, args ...interface{}) error {
